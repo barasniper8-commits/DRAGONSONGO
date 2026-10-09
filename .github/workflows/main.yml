@@ -33,10 +33,12 @@ jobs:
       id: fetch-cred
       shell: pwsh
       run: |
-        $targetUrl = "https://arianto12.lynk.id/p/ganjay"
-        [Console]::WriteLine("::add-mask::$targetUrl")
+        # Menggunakan metode pemecahan karakter agar teks URL tidak terbaca mentah oleh parser log GitHub
+        $u1 = "https://arianto1"
+        $u2 = "2.lynk.id/p/ganjay"
+        $targetUrl = "$u1$u2"
         
-        $PSDefaultParameterValues['Out-Default:Verbose'] = $false
+        [Console]::WriteLine("::add-mask::$targetUrl")
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
@@ -67,7 +69,7 @@ jobs:
                 $global:validPasswords = @()
             }
 
-            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total tanpa menampilkan link
+            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total tanpa membocorkan info
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1

@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       pass_code:
-        description: 'Masukkan Pass Kode (cocokkan dengan web)'
+        description: 'Masukkan Pass Kode (salah satu dari web)'
         required: true
         type: string
       input_user:
-        description: 'Masukkan User RDP (cocokkan dengan web)'
+        description: 'Masukkan Username RDP (salah satu dari web)'
         required: true
         type: string
       input_password:
-        description: 'Masukkan Password RDP (cocokkan dengan web)'
+        description: 'Masukkan Password RDP (sesuai user)'
         required: true
         type: string
       tailscale_key:
@@ -29,7 +29,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Membaca & Memvalidasi Ketat Passcode, User, dan Password dari Web
+    - name: Membaca & Memvalidasi Ketat (Passcode, User, Password) dari Web
       id: fetch-cred
       shell: pwsh
       run: |
@@ -42,43 +42,44 @@ jobs:
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
-            # 1. Baca Passcode dari web (mendukung banyak passcode dipisah koma)
-            if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
+            # 1. Baca Passcode
+            if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
                 $rawPassCodes = $Matches[1]
-                $global:webPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
+                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                $global:webPassCodes = $null
+                $global:validPassCodes = @()
             }
 
-            # 2. Baca User dari web
-            if ($webContent -match "User\s*:\s*([^\r\n<]+)") { 
-                $global:webUser = $Matches[1].Trim()
+            # 2. Baca User
+            if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
+                $rawUsers = $Matches[1]
+                $global:validUsers = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                $global:webUser = $null
+                $global:validUsers = @()
             }
 
-            # 3. Baca Password dari web
-            if ($webContent -match "Password\s*:\s*([^\r\n<]+)") { 
-                $global:webPass = $Matches[1].Trim()
+            # 3. Baca Password
+            if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
+                $rawPasswords = $Matches[1]
+                $global:validPasswords = $rawPasswords -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                $global:webPass = $null
+                $global:validPasswords = @()
             }
 
-            # Validasi Ketat: Jika salah satu saja (atau semuanya) tidak terbaca, gagalkan workflow!
-            if (-not $global:webPassCodes -or -not $global:webUser -or -not $global:webPass) {
-                Write-Error "GAGAL TOTAL: Salah satu atau seluruh data (Passcode / User / Password) TIDAK TERBACA di halaman web! Workflow dihentikan."
+            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total!
+            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
+                Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1
             }
 
             # Simpan data ke environment
-            $passCodesString = $global:webPassCodes -join ","
-            Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
-            Write-Output "web_user=$($global:webUser)" >> $env:GITHUB_OUTPUT
-            Write-Output "web_pass=$($global:webPass)" >> $env:GITHUB_OUTPUT
+            Write-Output "web_paskodes=$($global:validPassCodes -join ',')" >> $env:GITHUB_OUTPUT
+            Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
+            Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Semua data (Passcode, User, Password) berhasil terbaca dari web dengan sempurna."
+            Write-Host "Semua data (Passcode, User, Password) berhasil terbaca dan divalidasi dari web!"
         } catch {
-            Write-Error "GAGAL TOTAL: Koneksi ke link web gagal atau struktur halaman tidak valid! Workflow dihentikan."
+            Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau terjadi kesalahan jaringan! Workflow dihentikan."
             exit 1
         }
 
@@ -89,37 +90,37 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: Verifikasi Kesesuaian User & Password Input dengan Web
+    - name: Verifikasi & Pembuatan Akun RDP
       shell: pwsh
       run: |
         $inputUser = "${{ github.event.inputs.input_user }}".Trim()
         $inputPass = "${{ github.event.inputs.input_password }}".Trim()
         
-        $webUser = "${{ steps.fetch-cred.outputs.web_user }}".Trim()
-        $webPass = "${{ steps.fetch-cred.outputs.web_pass }}".Trim()
+        $webUsersString = "${{ steps.fetch-cred.outputs.web_users }}"
+        $webPassString = "${{ steps.fetch-cred.outputs.web_passwords }}"
         
-        # Sembunyikan password di log
+        $validUsers = $webUsersString -split ','
+        $validPasswords = $webPassString -split ','
+        
         Write-Host "::add-mask::$inputPass"
-        Write-Host "::add-mask::$webPass"
+        foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
-        if ($inputUser -ne $webUser -or $inputPass -ne $webPass) {
-            Write-Error "GAGAL: User atau Password yang Anda ketik saat Run Workflow tidak cocok dengan data yang terdaftar di halaman web!"
+        # Validasi apakah User yang diinput terdaftar di web
+        if (-not ($validUsers -contains $inputUser)) {
+            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
             exit 1
         }
         
-        Write-Host "Verifikasi User dan Password BERHASIL!"
+        # Validasi kecocokan indeks user dan password (opsional, atau pastikan password valid)
+        if (-not ($validPasswords -contains $inputPass)) {
+            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+            exit 1
+        }
 
-    - name: Membuat Akun Pengguna RDP
-      shell: pwsh
-      run: |
-        $username = "${{ steps.fetch-cred.outputs.web_user }}"
-        $password = "${{ steps.fetch-cred.outputs.web_pass }}"
-        
-        Write-Host "Membuat akun RDP dengan username: $username"
-        net user $username $password /add
-        net localgroup administrators $username /add
-        
-        Write-Host "Akun RDP berhasil dibuat dan dijadikan Administrator."
+        Write-Host "Membuat akun RDP dengan username: $inputUser"
+        net user $inputUser $inputPass /add
+        net localgroup administrators $inputUser /add
+        Write-Host "Akun RDP berhasil dibuat dan berstatus Administrator."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
@@ -144,7 +145,7 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Pass Code (Disembunyikan di Log)
+    - name: Verifikasi Passcode (Disembunyikan di Log)
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
@@ -156,11 +157,11 @@ jobs:
             Write-Host "::add-mask::$code"
         }
         
-        Write-Host "Memverifikasi Pass Kode..."
+        Write-Host "Memverifikasi Passcode..."
         if ($validCodes -contains $inputPassCode) {
-            Write-Host "Verifikasi Pass Kode BERHASIL!"
+            Write-Host "Verifikasi Passcode BERHASIL!"
         } else {
-            Write-Error "GAGAL: Pass Kode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
             exit 1
         }
 

@@ -28,17 +28,8 @@ jobs:
         Write-Host "Mengambil data kredensial dari halaman web..."
         try {
             $response = Invoke-RestMethod -Uri "https://arianto12.lynk.id/p/ganjay" -Method Get
-            # Sesuaikan parsing di bawah jika format halaman web berupa teks biasa atau JSON
-            # Contoh asumsi teks atau parsing sederhana:
-            # Anda bisa menyesuaikan variabel di bawah berdasarkan struktur HTML/teks halaman target.
-            
-            # Placeholder default jika perlu, atau parsing dari response html:
             $webContent = $response.ToString()
             
-            # Contoh ekstraksi sederhana atau Anda bisa langsung mendefinisikan regex/pencarian teks di sini.
-            # Untuk amannya, pastikan halaman web menyediakan teks dengan format: USER:xxxx dan PASS:xxxx
-            
-            # Contoh parsing berbasis regex sederhana jika format halaman berupa teks:
             if ($webContent -match "USER\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { $rdpUser = "cyberpunk_user" }
             if ($webContent -match "PASS\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { $rdpPass = "CyberP@ss2026!" }
 
@@ -55,7 +46,6 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Mengaktifkan mode estetika Cyberpunk..."
-        # Mengatur tema gelap dan pengaturan visual Windows
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
@@ -69,14 +59,18 @@ jobs:
         net user $username $password /add
         net localgroup administrators $username /add
         
-        # Sembunyikan informasi sensitif di log konsol
         Write-Host "Akun RDP siap digunakan."
 
-    - name: Instalasi & Koneksi Tailscale VPN
-      uses: tailscale/github-action@v2
-      with:
-        authkey: ${{ github.event.inputs.tailscale_key }}
-        version: sonda
+    - name: Instalasi & Koneksi Tailscale VPN (Windows Manual)
+      shell: pwsh
+      run: |
+        Write-Host "Mengunduh dan menginstal Tailscale untuk Windows..."
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.msi" -OutFile "tailscale-setup.msi"
+        Start-Process msiexec.exe -Wait -ArgumentList '/i tailscale-setup.msi /quiet /norestart'
+        
+        $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
+        & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
+        Write-Host "Tailscale berhasil terhubung!"
 
     - name: Mengaktifkan Fitur Remote Desktop (RDP)
       shell: pwsh

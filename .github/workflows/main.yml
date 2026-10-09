@@ -1,4 +1,4 @@
-name: Windows RDP Cyberpunk
+lname: Windows RDP Cyberpunk
 
 on:
   workflow_dispatch:

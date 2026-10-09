@@ -41,25 +41,13 @@ jobs:
             $webContent =$response.Content
             
             # 1. Baca Passcode
-            if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
-                $rawPassCodes = $Matches[1]$global:validPassCodes = $rawPassCodes -split ',' \vert{} ForEach-Object {$_.Trim() }
-            } else {
-                $global:validPassCodes = @()
-            }
+            if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { $rawPassCodes =$Matches[1]; $global:validPassCodes =$rawPassCodes -split ',' | ForEach-Object { $_.Trim() } } else {$global:validPassCodes = @() }
 
             # 2. Baca User
-            if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
-                $rawUsers = $Matches[1]$global:validUsers = $rawUsers -split ',' \vert{} ForEach-Object {$_.Trim() }
-            } else {
-                $global:validUsers = @()
-            }
+            if ($webContent -match "user\s*:\s*([^\r\n<]+)") { $rawUsers =$Matches[1]; $global:validUsers =$rawUsers -split ',' | ForEach-Object { $_.Trim() } } else {$global:validUsers = @() }
 
             # 3. Baca Password
-            if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
-                $rawPasswords = $Matches[1]$global:validPasswords = $rawPasswords -split ',' \vert{} ForEach-Object {$_.Trim() }
-            } else {
-                $global:validPasswords = @()
-            }
+            if ($webContent -match "password\s*:\s*([^\r\n<]+)") { $rawPasswords =$Matches[1]; $global:validPasswords =$rawPasswords -split ',' | ForEach-Object { $_.Trim() } } else {$global:validPasswords = @() }
 
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or$global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Data kredensial tidak terbaca di halaman web!"

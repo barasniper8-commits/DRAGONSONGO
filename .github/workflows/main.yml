@@ -34,29 +34,19 @@ jobs:
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
-        
         [Console]::WriteLine("::add-mask::$targetUrl")
         
         try {
-            $headers = @{ 
-                "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-                "Accept-Language" = "en-US,en;q=0.5"
-            }
+            $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
             $webContent =$response.Content
             
-            # 1. Baca Passcode
             if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { $rawPassCodes =$Matches[1]; $global:validPassCodes =$rawPassCodes -split ',' | ForEach-Object { $_.Trim() } } else {$global:validPassCodes = @() }
-
-            # 2. Baca User
             if ($webContent -match "user\s*:\s*([^\r\n<]+)") { $rawUsers =$Matches[1]; $global:validUsers =$rawUsers -split ',' | ForEach-Object { $_.Trim() } } else {$global:validUsers = @() }
-
-            # 3. Baca Password
             if ($webContent -match "password\s*:\s*([^\r\n<]+)") { $rawPasswords =$Matches[1]; $global:validPasswords =$rawPasswords -split ',' | ForEach-Object { $_.Trim() } } else {$global:validPasswords = @() }
 
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or$global:validPasswords.Count -eq 0) {
-                Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
+                Write-Error "GAGAL TOTAL: Data kredensial tidak terbaca di web!"
                 exit 1
             }
 
@@ -64,9 +54,9 @@ jobs:
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
+            Write-Host "Status: Semua data berhasil divalidasi dari web."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke halaman web gagal atau format data tidak valid: $_"
+            Write-Error "GAGAL TOTAL: Terhubung ke halaman web gagal: $_"
             exit 1
         }
 
@@ -92,12 +82,12 @@ jobs:
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
         if (-not ($validUsers -contains$inputUser)) {
-            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
+            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar!"
             exit 1
         }
         
         if (-not ($validPasswords -contains$inputPass)) {
-            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+            Write-Error "GAGAL: Password salah!"
             exit 1
         }
 
@@ -110,7 +100,6 @@ jobs:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
       run: |
-        # 1. Download & Pasang Foto Profil User (Format JPG)
         $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
         $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
         
@@ -118,49 +107,40 @@ jobs:
             $wc = New-Object System.Net.WebClient
             $wc.Headers.Add("User-Agent", "Mozilla/5.0")
             $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
-            
             if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path$avatarPath }
-            
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
             if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
-            
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
-            Write-Output "Foto profil JPG berhasil dipasang."
+            Write-Output "Foto profil berhasil dipasang."
         } catch {
             Write-Output "Peringatan: Gagal mengunduh foto profil: $_"
         }
 
-        # 2. Download & Pasang Wallpaper Desktop
         $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
         try {
             $wcW = New-Object System.Net.WebClient
             $wcW.Headers.Add("User-Agent", "Mozilla/5.0")
             $wcW.DownloadFile($wallpaperUrl, "C:\wallpaper.jpg")
-            
             takeown /f "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
             icacls "C:\Windows\Web\Wallpaper\Windows\img0.jpg" /grant Administrators:F
             Copy-Item "C:\wallpaper.jpg" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
             Write-Output "Wallpaper berhasil dipasang."
         } catch {
-            Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
+            Write-Output "Peringatan: Gagal mengunduh wallpaper..."
         }
 
-        # 3. Membuat Notepad Pesan Otomatis saat Desktop Terbuka
         $startupDir = "C:\Users\Public\Desktop"
         $noteContent = "MILIK ARIANTO`n======================`nDesktop free terimkasih sudah beli token`nDan semoga lancar rezeki sehat selulu.`n======================`n@Arianto 2026 Lumajang candipuro`n@Whatsapp 0831-2211-6267"
-        $notePath = "$startupDir\PENTING_BACA_INI.txt"
-        Set-Content -Path $notePath -Value $noteContent -Encoding UTF8
+        Set-Content -Path "$startupDir\PENTING_BACA_INI.txt" -Value $noteContent -Encoding UTF8
         
         $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
         if (!(Test-Path $startupFolder)) { New-Item -ItemType Directory -Force -Path$startupFolder }
-        $vbsPath = "$startupFolder\open_note.vbs"
-        $vbsContent = 'CreateObject("Wscript.Shell").Run "notepad.exe C:\Users\Public\Desktop\PENTING_BACA_INI.txt", 1, False'
-        Set-Content -Path $vbsPath -Value$vbsContent -Encoding UTF8
+        Set-Content -Path "$startupFolder\open_note.vbs" -Value 'CreateObject("Wscript.Shell").Run "notepad.exe C:\Users\Public\Desktop\PENTING_BACA_INI.txt", 1, False' -Encoding UTF8
         Write-Output "Notepad otomatis berhasil diatur."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
@@ -195,14 +175,12 @@ jobs:
         $validCodes =$webPassCodesString -split ','
         
         Write-Host "::add-mask::$inputPassCode"
-        foreach ($code in$validCodes) {
-            Write-Host "::add-mask::$code"
-        }
+        foreach ($code in $validCodes) { Write-Host "::add-mask::$code" }
         
         if ($validCodes -contains$inputPassCode) {
             Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
-            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Passcode tidak terdaftar!"
             exit 1
         }
 

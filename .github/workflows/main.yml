@@ -1,167 +1,125 @@
-
-name: "⚡ ARIANTO CYBERPUNK RDP"
+name: Cyberpunk RDP Free
 
 on:
   workflow_dispatch:
     inputs:
       tailscale_key:
-        description: "TAILSCALE AUTH KEY (tskey-auth-...)"
+        description: 'Masukkan Tailscale Auth Key (tskey-auth-...)'
         required: true
         type: string
 
-permissions:
-  contents: read
-
 jobs:
-  windows-rdp:
-    name: "NEON WINDOWS SESSION"
+  rdp:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
-      - name: "01 | ACCESS VALIDATION"
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Kredensial dari Web HTML
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          $passcode = "HGM-42DC"
+          Write-Host "Mengambil data kredensial dari halaman web..."
+          $url = "https://arianto12.lynk.id/p/ganjay"
+          
+          try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+              $htmlContent = $response.Content
 
-          if ($passcode -cne "HGM-42DC") {
-            throw "ACCESS DENIED"
+              # Ekstraksi menggunakan regex sederhana atau parsing teks dari HTML
+              # Sesuaikan pola regex jika struktur HTML spesifik, contoh mencocokkan teks:
+              # Pastikan teks di web Anda terstruktur rapi (misal: Pass kode: xxx, User: xxx, Password: xxx)
+              
+              # Contoh fallback pencarian teks di dalam body HTML
+              $plainText = [System.Text.RegularExpressions.Regex]::Replace($htmlContent, "<[^>]+>", " ")
+              
+              # Anda bisa menyesuaikan pola pencarian teks di bawah ini sesuai format halaman Lynk.id Anda
+              Write-Host "Berhasil mengunduh konten halaman web."
+              
+              # Untuk keamanan dan memastikan variabel terbaca, kita parsing baris demi baris atau simpan teks mentah
+              # Simpan konten teks untuk di-parsing user
+              $plainText | Out-File -FilePath "credentials.txt" -Encoding utf8
+          }
+          catch {
+              Write-Error "Gagal mengambil data dari URL: $_"
+              exit 1
           }
 
-          Write-Output "ACCESS GRANTED"
-
-      - name: "02 | FETCH PAGE AND CONFIGURE RDP"
+      - name: Konfigurasi User & Password RDP
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          $uri = "https://arianto12.lynk.id/p/ganjay"
-
-          $response = Invoke-WebRequest `
-            -Uri $uri -UseBasicParsing -TimeoutSec 30
-
-          $html = [Net.WebUtility]::HtmlDecode($response.Content)
-
-          # Mendukung format teks USER: nama / Username: nama
-          # dan PASS: nilai / Password: nilai.
-          $userMatch = [regex]::Match(
-            $html,
-            '(?is)(?:username|user)\s*[:=]\s*["'']?([a-zA-Z0-9_.-]{3,20})'
-          )
-
-          $passMatch = [regex]::Match(
-            $html,
-            '(?is)(?:password|pass)\s*[:=]\s*["'']?([^\s<"'']{8,128})'
-          )
-
-          if (-not $userMatch.Success -or -not $passMatch.Success) {
-            throw "Username/password tidak ditemukan. Periksa format halaman sumber."
+          # Membaca file kredensial yang di-download atau mendefinisikan parser
+          # Karena halaman web dinamis, pastikan teks di web Anda memiliki format kata kunci:
+          # "Pass kode: [kode]" , "User: [user]" , "Password: [pass]"
+          
+          $content = Get-Content "credentials.txt" -Raw
+          
+          # Contoh ekstraksi regex dari teks halaman web
+          # Pastikan teks di web persis menggunakan label tersebut
+          if ($content -match "Pass kode[:\s]+([^\s]+)") {
+              $passKode = $matches[1]
+              Write-Host "Pass kode ditemukan."
           }
-
-          $rdpUser = $userMatch.Groups[1].Value
-          $rdpPass = $passMatch.Groups[1].Value
-
-          Write-Output "::add-mask::$rdpUser"
-          Write-Output "::add-mask::$rdpPass"
-
-          $securePassword = ConvertTo-SecureString `
-            $rdpPass -AsPlainText -Force
-
-          $existing = Get-LocalUser -Name $rdpUser `
-            -ErrorAction SilentlyContinue
-
-          if ($existing) {
-            Set-LocalUser -Name $rdpUser -Password $securePassword
+          if ($content -match "User[:\s]+([^\s]+)") {
+              $rdpUser = $matches[1]
+              Write-Host "User ditemukan: $rdpUser"
           } else {
-            New-LocalUser -Name $rdpUser `
-              -Password $securePassword `
-              -AccountNeverExpires
+              $rdpUser = "cyberuser" # Default fallback jika tidak tertulis
+          }
+          
+          if ($content -match "Password[:\s]+([^\s]+)") {
+              $rdpPass = $matches[1]
+              Write-Host "Password ditemukan."
+          } else {
+              $rdpPass = "Cyberpunk2026!#" # Default fallback
           }
 
-          Add-LocalGroupMember -Group "Administrators" `
-            -Member $rdpUser -ErrorAction SilentlyContinue
+          # Simpan ke environment variables runner
+          echo "RDP_USER=$rdpUser" >> $env:GITHUB_ENV
+          echo "RDP_PASS=$rdpPass" >> $env:GITHUB_ENV
+          echo "PASS_KODE=$passKode" >> $env:GITHUB_ENV
 
-          Set-ItemProperty `
-            "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
-            -Name "fDenyTSConnections" -Value 0
+          # Eksekusi pembuatan user Windows lokal
+          $securePassword = ConvertTo-SecureString $rdpPass -AsPlainText -Force
+          New-LocalUser -Name "$rdpUser" -Password $securePassword -FullName "Cyberpunk RDP User" -Description "RDP Access User"
+          Add-LocalGroupMember -Group "Administrators" -Member "$rdpUser"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "$rdpUser"
+          
+          Write-Host "User $rdpUser berhasil dibuat dan ditambahkan ke grup Administrator."
 
-          Set-ItemProperty `
-            "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
-            -Name "UserAuthentication" -Value 1
-
+      - name: Aktifkan Fitur RDP (Remote Desktop)
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "RDP berhasil diaktifkan pada sistem."
 
-          Write-Output "RDP account configured."
+      - name: Setup & Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ github.event.inputs.tailscale_key }}
+          version: "stable"
 
-      - name: "03 | INSTALL TAILSCALE"
-        shell: pwsh
-        env:
-          TS_KEY: ${{ inputs.tailscale_key }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          if ($env:TS_KEY -notmatch '^tskey-auth-') {
-            throw "Invalid Tailscale Auth Key format."
-          }
-
-          Write-Output "::add-mask::$env:TS_KEY"
-
-          $installer = Join-Path $env:TEMP "tailscale-setup.msi"
-
-          Invoke-WebRequest `
-            "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
-            -OutFile $installer
-
-          $proc = Start-Process msiexec.exe `
-            -ArgumentList "/i", "`"$installer`"", "/qn", "/norestart" `
-            -Wait -PassThru
-
-          if ($proc.ExitCode -notin @(0, 3010)) {
-            throw "Tailscale installation failed."
-          }
-
-          $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
-
-          if (-not (Test-Path $ts)) {
-            throw "Tailscale executable not found."
-          }
-
-          Start-Service Tailscale -ErrorAction SilentlyContinue
-
-          & $ts up "--authkey=$env:TS_KEY" `
-            "--hostname=arianto-cyberpunk-$env:GITHUB_RUN_ID"
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Tailscale connection failed."
-          }
-
-          $ip = $null
-
-          for ($i = 0; $i -lt 15; $i++) {
-            $ip = (& $ts ip -4 | Select-Object -First 1)
-            if ($ip) { break }
-            Start-Sleep -Seconds 4
-          }
-
-          if (-not $ip) {
-            throw "Tailscale IP unavailable."
-          }
-
-          Write-Output "================================"
-          Write-Output "ARIANTO CYBERPUNK RDP READY"
-          Write-Output "TAILSCALE IP: $ip"
-          Write-Output "RDP USER/PASSWORD: gunakan konfigurasi sumber"
-          Write-Output "================================"
-
-      - name: "04 | KEEP SESSION ALIVE"
+      - name: Ambil IP Tailscale & Tampilkan Panel Cyberpunk
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          $end = (Get-Date).AddMinutes(110)
-
-          while ((Get-Date) -lt $end) {
-            Write-Output "SYSTEM ONLINE $(Get-Date -Format HH:mm:ss)"
-            Start-Sleep -Seconds 60
+          Start-Sleep -Seconds 5
+          $tsIp = (tailscale ip -4)[0]
+          
+          Write-Host "=================================================="
+          Write-Host "       CYBERPUNK RDP SUCCESSFULLY STARTED        "
+          Write-Host "=================================================="
+          Write-Host " Status       : ONLINE [CYBERNET SECURE]"
+          Write-Host " IP Address   : $tsIp"
+          Write-Host " Username     : $env:RDP_USER"
+          Write-Host " Password     : $env:RDP_PASS"
+          Write-Host " Pass Kode    : $env:PASS_KODE"
+          Write-Host "=================================================="
+          
+          # Menjaga agar workflow tetap aktif hidup (looping idle)
+          while ($true) {
+              Write-Host "[CYBERPUNK-CORE] RDP Connection active... Time: $(Get-Date)"
+              Start-Sleep -Seconds 300
           }
-
-          Write-Output "SESSION ENDED"

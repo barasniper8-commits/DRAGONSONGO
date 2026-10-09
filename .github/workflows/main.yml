@@ -1,19 +1,19 @@
-name: Cyberpunk RDP No-Secret
+name: Cyberpunk RDP Tailscale
 
 on:
   workflow_dispatch:
     inputs:
       pass_code:
-        description: '1. Tulis Pass Kode Buatan Sendiri'
+        description: 'Masukkan Pass Code buatan sendiri'
         required: true
-        type: string
+        default: 'Cyberpunk2026!'
       tailscale_key:
-        description: '2. Tulis Tailscale Key'
+        description: 'Masukkan Tailscale Auth Key'
         required: true
-        type: string
+        default: 'tskey-auth-...'
 
 jobs:
-  build-rdp:
+  rdp:
     runs-on: windows-latest
     timeout-minutes: 360
 
@@ -21,57 +21,23 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch Credentials from Web Source
-        id: fetch-creds
-        shell: pwsh
-        run: |
-          Write-Host "Mengambil data kredensial dari halaman web..."
-          $url = "https://arianto12.lynk.id/p/ganjay"
-          try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-              $content = $response.Content
-
-              # Sesuaikan regex / parsing di bawah ini berdasarkan struktur HTML web Anda
-              # Contoh sederhana mencari pola teks di dalam halaman
-              # Pastikan halaman web menyediakan teks dengan format yang bisa dibaca atau disesuaikan.
-              
-              Write-Host "Berhasil terhubung ke halaman target."
-              # Dummy/Default fallback jika parsing spesifik dibutuhkan, atau simpan ke environment variable github
-              # Anda dapat memodifikasi logika parsing teks HTML di sini jika diperlukan.
-          } catch {
-              Write-Host "Gagal mengambil data otomatis, menggunakan parameter darurat jika ada."
-          }
-
-      - name: Setup Cyberpunk Environment & Pass Verification
-        shell: pwsh
-        run: |
-          $inputPass = "${{ inputs.pass_code }}"
-          Write-Host "Verifikasi Pass Kode..."
-          Write-Host "Pass yang dimasukkan: $inputPass"
-          
-          # Tampilan Tema Cyberpunk
-          Write-Host "========================================="
-          Write-Host " [CYBERPUNK PRIVATE RDP INITIALIZED]    "
-          Write-Host "========================================="
-
-      - name: Connect to Tailscale Network
-        uses: tailscale/github-action@v4
-        with:
-          authkey: ${{ inputs.tailscale_key }}
-          version: stable
-
-      - name: Enable Remote Desktop (RDP)
-        shell: pwsh
+      - name: Konfigurasi Akses RDP & Windows Features
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Write-Host "RDP Service berhasil diaktifkan secara privat."
+          Write-Host "RDP berhasil diaktifkan!"
 
-      - name: Keep Alive Session
-        shell: pwsh
+      - name: Install & Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ github.event.inputs.tailscale_key }}
+          version: latest
+
+      - name: Info Koneksi & Pass Code
         run: |
-          Write-Host "Sistem RDP Cyberpunk berjalan stabil..."
-          while ($true) {
-              Start-Sleep -Seconds 30
-          }
+          Write-Host "=========================================="
+          Write-Host " RDP CYBERPUNK RUNNING SUCCESSFULLY"
+          Write-Host " Pass Code Anda: ${{ github.event.inputs.pass_code }}"
+          Write-Host " IP Tailscale dapat dilihat di dashboard Tailscale Anda"
+          Write-Host "=========================================="

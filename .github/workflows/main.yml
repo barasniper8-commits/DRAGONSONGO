@@ -61,15 +61,15 @@ jobs:
         
         Write-Host "Akun RDP siap digunakan."
 
-    - name: Instalasi & Koneksi Tailscale VPN (Windows Manual)
+    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
-        Write-Host "Mengunduh installer Tailscale untuk Windows..."
-        $installer = "$env:TEMP\tailscale-setup.exe"
-        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup.exe" -OutFile $installer
+        Write-Host "Mengunduh Tailscale MSI Installer untuk Windows..."
+        $installer = "$env:TEMP\tailscale-setup.msi"
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
         
         Write-Host "Menginstal Tailscale secara silent..."
-        Start-Process -FilePath $installer -ArgumentList "/quiet", "/norestart" -Wait
+        Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
         
         Write-Host "Menghubungkan ke Tailscale..."
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"

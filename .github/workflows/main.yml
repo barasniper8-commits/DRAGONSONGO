@@ -83,23 +83,38 @@ jobs:
             exit 1
         }
 
-    - name: Konfigurasi Tampilan & Wallpaper Windows Cyberpunk
-      shell: pwsh
-      run: |
-        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
-        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
+    # 1. Download & Pasang Foto Profil User
+          $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
+          $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
+          
+          try {
+              Invoke-WebRequest -Uri $avatarUrl -OutFile "C:\avatar.jpg" -UseBasicParsing -ErrorAction Stop
+              Copy-Item "C:\avatar.jpg" "$avatarPath\user.png" -Force
+              Copy-Item "C:\avatar.jpg" "$avatarPath\user-192.png" -Force
+              Copy-Item "C:\avatar.jpg" "$avatarPath\user-448.png" -Force
+              Copy-Item "C:\avatar.jpg" "$avatarPath\user-bmp.png" -Force
+              
+              $userSid = (Get-LocalUser -Name$env:RDP_USER).SID.Value
+              $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
+              if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
+              New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
+              New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
+              Write-Output "Foto profil berhasil dipasang."
+          } catch {
+              Write-Output "Peringatan: Gagal mengunduh foto profil, melewati bagian ini..."
+          }
 
-        Write-Host "Mengunduh Wallpaper Desktop..."
-        $wallPath = "C:\cyber_wallpaper.jpg"
-        $wc = New-Object System.Net.WebClient
-        $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        $wc.DownloadFile("https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg", $wallPath)
-        
-        # Menerapkan Wallpaper via Registry & User32 API bawaan PowerShell
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
-        Add-Type -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);' -Name "Wallpaper" -Namespace "Win32"
-        [Win32.Wallpaper]::SystemParametersInfo(20, 0, $wallPath, 3)
-        Write-Host "Status: Wallpaper berhasil diterapkan."
+          # 2. Download & Pasang Wallpaper Desktop
+          $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
+          try {
+              Invoke-WebRequest -Uri $wallpaperUrl -OutFile "C:\wallpaper.png" -UseBasicParsing -ErrorAction Stop
+              takeown /f "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
+              icacls "C:\Windows\Web\Wallpaper\Windows\img0.jpg" /grant Administrators:F
+              Copy-Item "C:\wallpaper.png" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
+              Write-Output "Wallpaper berhasil dipasang."
+          } catch {
+              Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
+          }
 
     - name: Verifikasi & Pembuatan Akun RDP & Foto Profil
       shell: pwsh

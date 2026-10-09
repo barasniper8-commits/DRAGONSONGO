@@ -206,8 +206,8 @@ jobs:
         $validCodes =$webPassCodesString -split ','
         
         Write-Host "::add-mask::$inputPassCode"
-        foreach ($code in$validCodes) {
-            Write-Host "::add-mask::$code"
+        foreach ($c in$validCodes) {
+            Write-Host "::add-mask::$c"
         }
         
         if ($validCodes -contains$inputPassCode) {

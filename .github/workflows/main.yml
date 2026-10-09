@@ -41,31 +41,34 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
-            $webContent =$response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
+            $webContent = $response.Content
             
             # 1. Baca Passcode
             if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
-                $rawPassCodes = $Matches[1]$global:validPassCodes = $rawPassCodes -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $rawPassCodes = $Matches[1]
+                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
             } else {
                 $global:validPassCodes = @()
             }
 
             # 2. Baca User
             if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
-                $rawUsers = $Matches[1]$global:validUsers = $rawUsers -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $rawUsers = $Matches[1]
+                $global:validUsers = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
             } else {
                 $global:validUsers = @()
             }
 
             # 3. Baca Password
             if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
-                $rawPasswords = $Matches[1]$global:validPasswords = $rawPasswords -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $rawPasswords = $Matches[1]
+                $global:validPasswords = $rawPasswords -split ',' | ForEach-Object { $_.Trim() }
             } else {
                 $global:validPasswords = @()
             }
 
-            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or$global:validPasswords.Count -eq 0) {
+            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1
             }
@@ -95,23 +98,23 @@ jobs:
         $webUsersString = "${{ steps.fetch-cred.outputs.web_users }}"
         $webPassString = "${{ steps.fetch-cred.outputs.web_passwords }}"
         
-        $validUsers =$webUsersString -split ','
-        $validPasswords =$webPassString -split ','
+        $validUsers = $webUsersString -split ','
+        $validPasswords = $webPassString -split ','
         
         Write-Host "::add-mask::$inputPass"
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
-        if (-not ($validUsers -contains$inputUser)) {
+        if (-not ($validUsers -contains $inputUser)) {
             Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
             exit 1
         }
         
-        if (-not ($validPasswords -contains$inputPass)) {
+        if (-not ($validPasswords -contains $inputPass)) {
             Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
             exit 1
         }
 
-        net user $inputUser$inputPass /add
+        net user $inputUser $inputPass /add
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
@@ -129,14 +132,14 @@ jobs:
             $wc.Headers.Add("User-Agent", "Mozilla/5.0")
             $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
             
-            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path$avatarPath }
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
             
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-            if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
+            if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
             
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
@@ -160,6 +163,26 @@ jobs:
             Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
         }
 
+    - name: Tampilkan Pesan Informasi di Layar Desktop
+      shell: pwsh
+      run: |
+        $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
+        if (-not (Test-Path $desktopPath)) { $desktopPath = "C:\Users\Public\Desktop" }
+        
+        $msgContent = @"
+======================================
+MILIK ARIANTO
+======================
+Desktop free terima kasih sudah beli token
+Dan semoga lancar rezeki sehat selalu.
+======================
+@Arianto 2026 Lumajang Candipuro
+@WhatsApp 0831-2211-6267
+"@
+        
+        Set-Content -Path "$desktopPath\INFORMASI_PEMILIK_VPS.txt" -Value $msgContent -Encoding UTF8
+        Write-Output "File informasi teks berhasil dibuat di desktop."
+
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
@@ -171,20 +194,10 @@ jobs:
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         
         Start-Sleep -Seconds 5
-        $tsIp = &$tailscalePath ip -4
-        
-        # Pisah log dan tampilkan IP Tailscale di bagian bawah langkah ini
+        $tsIp = & $tailscalePath ip -4
         Write-Host "=========================================="
         Write-Host "IP TAILSCALE VPS ANDA: $tsIp" -ForegroundColor Cyan
         Write-Host "=========================================="
-
-    - name: Tampilkan Pesan Informasi di Notepad (Desktop RDP)
-      shell: pwsh
-      run: |
-        $msgPath = "C:\Users\Public\Desktop\Pesan_Arianto.txt"
-        $content = "MILIK ARIANTO`n=====================`nDesktop free terimakasih sudah beli token`nDan semoga lancar rezeki sehat selalu.`n=====================`n@Arianto 2026 Lumajang candipuro`n@Whatsapp 0831-2211-6267"
-        Set-Content -Path $msgPath -Value$content
-        Start-Process notepad.exe $msgPath
 
     - name: Mengaktifkan Fitur Remote Desktop (RDP)
       shell: pwsh
@@ -199,14 +212,14 @@ jobs:
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
         $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
-        $validCodes =$webPassCodesString -split ','
+        $validCodes = $webPassCodesString -split ','
         
         Write-Host "::add-mask::$inputPassCode"
-        foreach ($code in$validCodes) {
+        foreach ($code in $validCodes) {
             Write-Host "::add-mask::$code"
         }
         
-        if ($validCodes -contains$inputPassCode) {
+        if ($validCodes -contains $inputPassCode) {
             Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
             Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."

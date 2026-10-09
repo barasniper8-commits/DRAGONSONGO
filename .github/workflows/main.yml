@@ -1,71 +1,4 @@
 
-name: "RDP MILIK ARIANTO | CYBERPUNK PRO"
-
-on:
-  workflow_dispatch:
-    inputs:
-      pass_code:
-        description: "Masukkan Pass Kode"
-        required: true
-        type: string
-      input_user:
-        description: "Masukkan Username RDP"
-        required: true
-        type: string
-      input_password:
-        description: "Masukkan Password RDP"
-        required: true
-        type: string
-      tailscale_key:
-        description: "Masukkan Tailscale Auth Key"
-        required: true
-        type: string
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    name: "ARIANTO RDP CYBERPUNK"
-    runs-on: windows-latest
-    timeout-minutes: 360
-
-    steps:
-      - name: "INITIALIZE CYBERPUNK TERMINAL"
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "           ARIANTO RDP CYBERPUNK PRO" -ForegroundColor Magenta
-          Write-Host "           WINDOWS CLOUD INITIALIZATION" -ForegroundColor Cyan
-          Write-Host "           CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
-          Write-Host "========================================================" -ForegroundColor Cyan
-
-          $tasks = @(
-            "Initializing cyberpunk terminal",
-            "Loading Windows cloud environment",
-            "Preparing network interface",
-            "Preparing system diagnostics"
-          )
-
-          foreach ($task in $tasks) {
-            Write-Host ""
-            Write-Host "[SYSTEM] $task" -ForegroundColor Cyan
-
-            foreach ($i in 1..20) {
-              $bar = ("#" * $i).PadRight(20, "-")
-              Write-Host "[$bar] $($i * 5)%" -ForegroundColor Magenta
-              Start-Sleep -Milliseconds 35
-            }
-
-            Write-Host "[OK] $task" -ForegroundColor Green
-          }
-
-          Write-Host "[READY] TERMINAL INITIALIZED" -ForegroundColor Green
-
-      - name: "CHECKOUT REPOSITORY"
-        uses: actions/checkout@v4
-
       - name: "VALIDATE WEB CREDENTIALS"
         id: fetch-cred
         shell: pwsh
@@ -76,7 +9,6 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host ""
           Write-Host "[01/05] CONNECTING TO CREDENTIAL REGISTRY" -ForegroundColor Cyan
 
           $targetUrl = "https://arianto12.lynk.id/p/ganjay"
@@ -86,35 +18,35 @@ jobs:
               -Uri $targetUrl `
               -Headers @{ "User-Agent" = "Mozilla/5.0" } `
               -UseBasicParsing `
-              -TimeoutSec 30
+              -TimeoutSec 30 `
+              -MaximumRedirection 5
 
-            $html = $response.Content
-
-            # Convert HTML elements into separate text lines.
-            $documentText = [System.Net.WebUtility]::HtmlDecode(
-              [regex]::Replace($html, '(?i)<\s*br\s*/?\s*>|</\s*(div|p|li)\s*>', "`n")
+            $html = [System.Net.WebUtility]::HtmlDecode(
+              [string]$response.Content
             )
 
-            $documentText = [regex]::Replace(
-              $documentText, '<[^>]+>', ''
-            )
+            Write-Host "[INFO] HTTP request completed" -ForegroundColor Green
+            Write-Host "[INFO] Response size: $($html.Length) characters" -ForegroundColor Cyan
 
+            # Extract text values without printing the credentials.
             $passMatch = [regex]::Match(
-              $documentText, '(?im)^\s*passcode\s*:\s*(.+?)\s*$'
+              $html, '(?is)\bpasscode\s*:\s*([^<\r\n]+)'
             )
-
             $userMatch = [regex]::Match(
-              $documentText, '(?im)^\s*user\s*:\s*(.+?)\s*$'
+              $html, '(?is)\buser\s*:\s*([^<\r\n]+)'
+            )
+            $passwordMatch = [regex]::Match(
+              $html, '(?is)\bpassword\s*:\s*([^<\r\n]+)'
             )
 
-            $passwordMatch = [regex]::Match(
-              $documentText, '(?im)^\s*password\s*:\s*(.+?)\s*$'
-            )
+            Write-Host "[CHECK] Passcode label found: $($passMatch.Success)"
+            Write-Host "[CHECK] User label found: $($userMatch.Success)"
+            Write-Host "[CHECK] Password label found: $($passwordMatch.Success)"
 
             if (-not $passMatch.Success -or
                 -not $userMatch.Success -or
                 -not $passwordMatch.Success) {
-              throw "Required fields not found in webpage."
+              throw "Expected labels are absent from the fetched HTML. Check whether the page contains the data in its initial HTML response."
             }
 
             $passCodes = @(
@@ -141,12 +73,14 @@ jobs:
               }
             }
 
-            if ($env:PASS_CODE_INPUT) {
-              Write-Output "::add-mask::$env:PASS_CODE_INPUT"
-            }
-
-            if ($env:PASSWORD_INPUT) {
-              Write-Output "::add-mask::$env:PASSWORD_INPUT"
+            foreach ($secret in @(
+              $env:PASS_CODE_INPUT,
+              $env:USER_INPUT,
+              $env:PASSWORD_INPUT
+            )) {
+              if ($secret) {
+                Write-Output "::add-mask::$secret"
+              }
             }
 
             $inputCode = $env:PASS_CODE_INPUT.Trim()
@@ -154,185 +88,24 @@ jobs:
             $inputPassword = $env:PASSWORD_INPUT.Trim()
 
             if ($passCodes -cnotcontains $inputCode) {
-              throw "Passcode verification failed."
+              throw "Passcode does not match the fetched registry."
             }
 
             if ($users -cnotcontains $inputUser) {
-              throw "Username verification failed."
+              throw "Username does not match the fetched registry."
             }
 
             if ($passwords -cnotcontains $inputPassword) {
-              throw "Password verification failed."
+              throw "Password does not match the fetched registry."
             }
 
-            # Output only validated values needed by the next step.
             "verified_user=$inputUser" >> $env:GITHUB_OUTPUT
             "verified_password=$inputPassword" >> $env:GITHUB_OUTPUT
 
-            Write-Host "[OK] HTML PARSED SUCCESSFULLY" -ForegroundColor Green
-            Write-Host "[OK] PASSCODE VERIFIED" -ForegroundColor Green
-            Write-Host "[OK] USERNAME VERIFIED" -ForegroundColor Green
-            Write-Host "[OK] PASSWORD VERIFIED" -ForegroundColor Green
+            Write-Host "[OK] REGISTRY PARSED" -ForegroundColor Green
+            Write-Host "[OK] ALL CREDENTIAL CHECKS PASSED" -ForegroundColor Green
           }
           catch {
-            Write-Host "[ERROR] CREDENTIAL VALIDATION FAILED" -ForegroundColor Red
-            throw "Credential validation failed. Check the webpage format and inputs."
+            Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
+            throw "Credential validation failed. Review the diagnostic messages above."
           }
-
-      - name: "WINDOWS CYBERPUNK LOADING DISPLAY"
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "[02/05] WINDOWS CLOUD INITIALIZATION" -ForegroundColor Cyan
-
-          $tasks = @(
-            "Checking Windows runtime",
-            "Preparing system configuration",
-            "Loading network components",
-            "Preparing remote desktop environment"
-          )
-
-          foreach ($task in $tasks) {
-            Write-Host ""
-            Write-Host ">> $task" -ForegroundColor Magenta
-
-            foreach ($i in 1..10) {
-              $bar = ("=" * ($i * 2)).PadRight(20, ".")
-              Write-Host "[$bar] $($i * 10)%" -ForegroundColor Cyan
-              Start-Sleep -Milliseconds 100
-            }
-
-            Write-Host "[OK] $task" -ForegroundColor Green
-          }
-
-      - name: "CONFIGURE RDP ACCOUNT"
-        shell: pwsh
-        env:
-          RDP_USER: ${{ steps.fetch-cred.outputs.verified_user }}
-          RDP_PASSWORD: ${{ steps.fetch-cred.outputs.verified_password }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host ""
-          Write-Host "[03/05] CONFIGURING RDP ACCOUNT" -ForegroundColor Cyan
-
-          $user = $env:RDP_USER
-          $password = $env:RDP_PASSWORD
-
-          if ([string]::IsNullOrWhiteSpace($user) -or
-              [string]::IsNullOrWhiteSpace($password)) {
-            throw "Validated account data is missing."
-          }
-
-          $securePassword = ConvertTo-SecureString `
-            $password -AsPlainText -Force
-
-          $account = Get-LocalUser `
-            -Name $user -ErrorAction SilentlyContinue
-
-          if ($account) {
-            Set-LocalUser -Name $user -Password $securePassword
-          }
-          else {
-            New-LocalUser `
-              -Name $user `
-              -Password $securePassword `
-              -PasswordNeverExpires `
-              -AccountNeverExpires | Out-Null
-          }
-
-          Add-LocalGroupMember `
-            -Group "Administrators" `
-            -Member $user `
-            -ErrorAction SilentlyContinue
-
-          Write-Host "[OK] RDP ACCOUNT CONFIGURED" -ForegroundColor Green
-
-      - name: "INSTALL AND CONNECT TAILSCALE"
-        shell: pwsh
-        env:
-          TS_AUTHKEY: ${{ inputs.tailscale_key }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host ""
-          Write-Host "[04/05] TAILSCALE NETWORK INITIALIZATION" -ForegroundColor Cyan
-
-          if ([string]::IsNullOrWhiteSpace($env:TS_AUTHKEY)) {
-            throw "Tailscale authentication key is missing."
-          }
-
-          Write-Output "::add-mask::$env:TS_AUTHKEY"
-
-          $installer = Join-Path $env:TEMP "tailscale-setup.msi"
-
-          Invoke-WebRequest `
-            -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
-            -OutFile $installer `
-            -TimeoutSec 120
-
-          $process = Start-Process `
-            -FilePath "msiexec.exe" `
-            -ArgumentList "/i `"$installer`" /quiet /norestart" `
-            -Wait `
-            -PassThru
-
-          if ($process.ExitCode -notin @(0, 3010)) {
-            throw "Tailscale installation failed."
-          }
-
-          $tailscalePath = Join-Path `
-            $env:ProgramFiles "Tailscale\tailscale.exe"
-
-          if (-not (Test-Path $tailscalePath)) {
-            throw "Tailscale executable not found."
-          }
-
-          & $tailscalePath up "--authkey=$env:TS_AUTHKEY" --accept-routes
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Tailscale connection failed."
-          }
-
-          Write-Host "[OK] TAILSCALE CONNECTED" -ForegroundColor Green
-
-          & $tailscalePath status
-
-          Remove-Item $installer -Force -ErrorAction SilentlyContinue
-
-      - name: "ENABLE REMOTE DESKTOP"
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host ""
-          Write-Host "[05/05] ENABLING REMOTE DESKTOP" -ForegroundColor Cyan
-
-          Set-ItemProperty `
-            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-            -Name "fDenyTSConnections" `
-            -Value 0
-
-          Set-ItemProperty `
-            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
-            -Name "UserAuthentication" `
-            -Value 1
-
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-          Set-Service -Name TermService -StartupType Automatic
-          Start-Service -Name TermService
-
-          Write-Host ""
-          Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "             RDP MILIK ARIANTO" -ForegroundColor Magenta
-          Write-Host "       CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
-          Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "[OK] WINDOWS RUNTIME INITIALIZED" -ForegroundColor Green
-          Write-Host "[OK] CREDENTIALS VERIFIED" -ForegroundColor Green
-          Write-Host "[OK] TAILSCALE CONNECTED" -ForegroundColor Green
-          Write-Host "[OK] REMOTE DESKTOP CONFIGURED" -ForegroundColor Green
-          Write-Host ""
-          Write-Host "[INFO] GitHub-hosted runners are temporary." -ForegroundColor Yellow
-          Write-Host "[INFO] Workflow runtime is limited by GitHub runner limits." -ForegroundColor Yellow
-          Write-Host "========================================================" -ForegroundColor Cyan

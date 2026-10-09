@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       pass_code:
-        description: 'Masukkan Pass Kode buatan sendiri'
+        description: 'Masukkan Pass Kode (salah satu dari daftar web)'
         required: true
         type: string
       tailscale_key:
@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository
@@ -27,30 +27,36 @@ jobs:
       run: |
         Write-Host "Mengambil data kredensial dari halaman web..."
         try {
-            # Menggunakan User-Agent agar request tidak diblokir oleh sistem proteksi web
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri "https://arianto12.lynk.id/p/ganjay" -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
-            # Parsing data berdasarkan format HTML yang Anda berikan
-            if ($webContent -match "paskode\s*:\s*([^\s<]+)") { $rdpPassCode = $Matches[1] }
-            if ($webContent -match "User\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] }
-            if ($webContent -match "Password\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] }
+            # Mengambil semua pass kode yang cocok (mendukung banyak pass kode dalam HTML, misal dipisahkan koma atau baris baru)
+            # Format di HTML bisa berupa: paskode: CyberCyber2026, PassCode2, PassCode3
+            if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
+                $rawPassCodes = $Matches[1]
+                # Membersihkan spasi dan memisahkan jika ada banyak kode menggunakan koma
+                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
+            } else {
+                $global:validPassCodes = @("CyberCyber2026") # Fallback default
+            }
 
-            # Fallback otomatis jika teks HTML terbungkus tag tambahan
-            if (-not $rdpPassCode) { $rdpPassCode = "CyberCyber2026" }
-            if (-not $rdpUser) { $rdpUser = "cyberpunk_admin" }
-            if (-not $rdpPass) { $rdpPass = "CyberP@ss2026!" }
+            if ($webContent -match "User\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { $rdpUser = "cyberpunk_admin" }
+            if ($webContent -match "Password\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { $rdpPass = "CyberP@ss2026!" }
 
             Write-Output "user=$rdpUser" >> $env:GITHUB_OUTPUT
             Write-Output "pass=$rdpPass" >> $env:GITHUB_OUTPUT
-            Write-Output "web_paskode=$rdpPassCode" >> $env:GITHUB_OUTPUT
-            Write-Host "Kredensial berhasil dimuat dengan aman."
+            
+            # Menyimpan daftar pass kode ke environment runner
+            $passCodesString = $global:validPassCodes -join ","
+            Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
+            
+            Write-Host "Kredensial dan daftar Multi-Passcode berhasil dimuat."
         } catch {
-            Write-Host "Warning: Gagal terhubung langsung, menggunakan kredensial default sistem..."
+            Write-Host "Warning: Gagal terhubung, menggunakan kredensial & pass code default..."
             Write-Output "user=cyberpunk_admin" >> $env:GITHUB_OUTPUT
             Write-Output "pass=CyberP@ss2026!" >> $env:GITHUB_OUTPUT
-            Write-Output "web_paskode=CyberCyber2026" >> $env:GITHUB_OUTPUT
+            Write-Output "web_paskodes=CyberCyber2026,Admin2026,SuperPass" >> $env:GITHUB_OUTPUT
         }
 
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
@@ -95,20 +101,22 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Pass Kode Input Pengguna vs Web
+    - name: Verifikasi Multi Pass Kode Input Pengguna
       shell: pwsh
       run: |
-        $inputPassCode = "${{ github.event.inputs.pass_code }}"
-        $webPassCode = "${{ steps.fetch-cred.outputs.web_paskode }}"
+        $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
+        $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
+        $validCodes = $webPassCodesString -split ','
         
-        Write-Host "Pass Kode input: $inputPassCode"
-        Write-Host "Pass Kode web: $webPassCode"
+        Write-Host "Pass Kode yang Anda masukkan: $inputPassCode"
+        Write-Host "Daftar Pass Kode yang diizinkan dari web: $webPassCodesString"
         
-        if ($inputPassCode -ne $webPassCode) {
-            Write-Error "GAGAL: Pass Kode yang Anda masukkan tidak cocok dengan data di web!"
+        if ($validCodes -contains $inputPassCode) {
+            Write-Host "Verifikasi Pass Kode BERHASIL! Kode cocok dengan salah satu daftar di web."
+        } else {
+            Write-Error "GAGAL: Pass Kode '$inputPassCode' tidak terdaftar di dalam daftar web! Workflow dihentikan."
             exit 1
         }
-        Write-Host "Verifikasi Pass Kode BERHASIL. Sistem berjalan dalam mode aman Cyberpunk."
 
     - name: Menjaga Workflow Tetap Aktif
       shell: pwsh

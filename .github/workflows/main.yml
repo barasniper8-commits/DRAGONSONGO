@@ -123,33 +123,41 @@ jobs:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
       run: |
-        # 1. Download & Pasang Foto Profil User
+        # 1. Download & Pasang Foto Profil User (Format JPG)
         $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
         $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
         
         try {
-            Invoke-WebRequest -Uri $avatarUrl -OutFile "C:\avatar.jpg" -UseBasicParsing -ErrorAction Stop
-            if (!(Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
+            $wc = New-Object System.Net.WebClient
+            $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+            $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
+            
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
+            
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
             if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
-            Write-Output "Foto profil berhasil dipasang."
+            Write-Output "Foto profil JPG berhasil dipasang."
         } catch {
-            Write-Output "Peringatan: Gagal mengunduh foto profil, melewati bagian ini..."
+            Write-Output "Peringatan: Gagal mengunduh foto profil: $_"
         }
 
         # 2. Download & Pasang Wallpaper Desktop
         $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
         try {
-            Invoke-WebRequest -Uri $wallpaperUrl -OutFile "C:\wallpaper.png" -UseBasicParsing -ErrorAction Stop
+            $wcW = New-Object System.Net.WebClient
+            $wcW.Headers.Add("User-Agent", "Mozilla/5.0")
+            $wcW.DownloadFile($wallpaperUrl, "C:\wallpaper.jpg")
+            
             takeown /f "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
             icacls "C:\Windows\Web\Wallpaper\Windows\img0.jpg" /grant Administrators:F
-            Copy-Item "C:\wallpaper.png" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
+            Copy-Item "C:\wallpaper.jpg" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
             Write-Output "Wallpaper berhasil dipasang."
         } catch {
             Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."

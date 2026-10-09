@@ -1,0 +1,167 @@
+
+name: "⚡ ARIANTO CYBERPUNK RDP"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tailscale_key:
+        description: "TAILSCALE AUTH KEY (tskey-auth-...)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-rdp:
+    name: "NEON WINDOWS SESSION"
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: "01 | ACCESS VALIDATION"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $passcode = "HGM-42DC"
+
+          if ($passcode -cne "HGM-42DC") {
+            throw "ACCESS DENIED"
+          }
+
+          Write-Output "ACCESS GRANTED"
+
+      - name: "02 | FETCH PAGE AND CONFIGURE RDP"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $uri = "https://arianto12.lynk.id/p/ganjay"
+
+          $response = Invoke-WebRequest `
+            -Uri $uri -UseBasicParsing -TimeoutSec 30
+
+          $html = [Net.WebUtility]::HtmlDecode($response.Content)
+
+          # Mendukung format teks USER: nama / Username: nama
+          # dan PASS: nilai / Password: nilai.
+          $userMatch = [regex]::Match(
+            $html,
+            '(?is)(?:username|user)\s*[:=]\s*["'']?([a-zA-Z0-9_.-]{3,20})'
+          )
+
+          $passMatch = [regex]::Match(
+            $html,
+            '(?is)(?:password|pass)\s*[:=]\s*["'']?([^\s<"'']{8,128})'
+          )
+
+          if (-not $userMatch.Success -or -not $passMatch.Success) {
+            throw "Username/password tidak ditemukan. Periksa format halaman sumber."
+          }
+
+          $rdpUser = $userMatch.Groups[1].Value
+          $rdpPass = $passMatch.Groups[1].Value
+
+          Write-Output "::add-mask::$rdpUser"
+          Write-Output "::add-mask::$rdpPass"
+
+          $securePassword = ConvertTo-SecureString `
+            $rdpPass -AsPlainText -Force
+
+          $existing = Get-LocalUser -Name $rdpUser `
+            -ErrorAction SilentlyContinue
+
+          if ($existing) {
+            Set-LocalUser -Name $rdpUser -Password $securePassword
+          } else {
+            New-LocalUser -Name $rdpUser `
+              -Password $securePassword `
+              -AccountNeverExpires
+          }
+
+          Add-LocalGroupMember -Group "Administrators" `
+            -Member $rdpUser -ErrorAction SilentlyContinue
+
+          Set-ItemProperty `
+            "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" -Value 0
+
+          Set-ItemProperty `
+            "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
+            -Name "UserAuthentication" -Value 1
+
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Write-Output "RDP account configured."
+
+      - name: "03 | INSTALL TAILSCALE"
+        shell: pwsh
+        env:
+          TS_KEY: ${{ inputs.tailscale_key }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ($env:TS_KEY -notmatch '^tskey-auth-') {
+            throw "Invalid Tailscale Auth Key format."
+          }
+
+          Write-Output "::add-mask::$env:TS_KEY"
+
+          $installer = Join-Path $env:TEMP "tailscale-setup.msi"
+
+          Invoke-WebRequest `
+            "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" `
+            -OutFile $installer
+
+          $proc = Start-Process msiexec.exe `
+            -ArgumentList "/i", "`"$installer`"", "/qn", "/norestart" `
+            -Wait -PassThru
+
+          if ($proc.ExitCode -notin @(0, 3010)) {
+            throw "Tailscale installation failed."
+          }
+
+          $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          if (-not (Test-Path $ts)) {
+            throw "Tailscale executable not found."
+          }
+
+          Start-Service Tailscale -ErrorAction SilentlyContinue
+
+          & $ts up "--authkey=$env:TS_KEY" `
+            "--hostname=arianto-cyberpunk-$env:GITHUB_RUN_ID"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Tailscale connection failed."
+          }
+
+          $ip = $null
+
+          for ($i = 0; $i -lt 15; $i++) {
+            $ip = (& $ts ip -4 | Select-Object -First 1)
+            if ($ip) { break }
+            Start-Sleep -Seconds 4
+          }
+
+          if (-not $ip) {
+            throw "Tailscale IP unavailable."
+          }
+
+          Write-Output "================================"
+          Write-Output "ARIANTO CYBERPUNK RDP READY"
+          Write-Output "TAILSCALE IP: $ip"
+          Write-Output "RDP USER/PASSWORD: gunakan konfigurasi sumber"
+          Write-Output "================================"
+
+      - name: "04 | KEEP SESSION ALIVE"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $end = (Get-Date).AddMinutes(110)
+
+          while ((Get-Date) -lt $end) {
+            Write-Output "SYSTEM ONLINE $(Get-Date -Format HH:mm:ss)"
+            Start-Sleep -Seconds 60
+          }
+
+          Write-Output "SESSION ENDED"

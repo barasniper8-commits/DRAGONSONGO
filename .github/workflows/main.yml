@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 10
 
     steps:
     - name: Checkout Repository
@@ -41,22 +41,23 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
-            $webContent =$response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
+            $webContent = $response.Content
             
             $plainText = [System.Text.RegularExpressions.Regex]::Replace($webContent, "<[^>]+>", " ")
             
             $validPassCodes = @()
-            $validUsers = @()$validPasswords = @()
+            $validUsers = @()
+            $validPasswords = @()
 
             if ($plainText -match "passcode\s*[:=]\s*([^\r\n]+)") {
-                $validPassCodes = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPassCodes = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "user\s*[:=]\s*([^\r\n]+)") {
-                $validUsers = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validUsers = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "password\s*[:=]\s*([^\r\n]+)") {
-                $validPasswords = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPasswords = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
 
             if ($validPassCodes.Count -eq 0) { $validPassCodes = @($plainText -split '\s+') }
@@ -89,7 +90,7 @@ jobs:
         
         Write-Host "::add-mask::$inputPass"
 
-        net user $inputUser$inputPass /add
+        net user $inputUser $inputPass /add
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat dan berstatus Administrator."
 
@@ -107,14 +108,14 @@ jobs:
             $wc.Headers.Add("User-Agent", "Mozilla/5.0")
             $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
             
-            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path$avatarPath }
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
             
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-            if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
+            if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
             
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
@@ -138,26 +139,16 @@ jobs:
             Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
         }
 
-    - name: Tampilkan Pesan Informasi di Layar Desktop & Otomatis Buka
+    - name: Tampilkan Pesan Informasi di Layar Desktop
       shell: pwsh
       run: |
         $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
-        if (-not (Test-Path $desktopPath)) {$desktopPath = "C:\Users\Public\Desktop" }
+        if (-not (Test-Path $desktopPath)) { $desktopPath = "C:\Users\Public\Desktop" }
         
-        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terimakasih sudah beli token`ndan semoga lancar rezekinya sehat selalu.`n======================`n@Arianto 2026 Lumajang Candipuro`n@WhatsApp 0831-2211-6267"
+        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`n@Arianto 2026 Lumajang Candipuro`n@WhatsApp 0831-2211-6267"
         
-        $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
-        Set-Content -Path $filePath -Value$msgContent -Encoding UTF8
-        
-        # Shortcut Startup agar Notepad otomatis terbuka di layar saat RDP dimasuki
-        $startupPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
-        if (-not (Test-Path $startupPath)) { New-Item -ItemType Directory -Force -Path $startupPath }$ws = New-Object -ComObject WScript.Shell
-        $shortcut = $ws.CreateShortcut("$startupPath\BukaPesan.lnk")
-        $shortcut.TargetPath = "notepad.exe"
-        $shortcut.Arguments = "`"$filePath`""
-        $shortcut.Save()
-        
-        Write-Output "File informasi berhasil dibuat dan diatur agar otomatis terbuka di layar."
+        Set-Content -Path "$desktopPath\INFORMASI_PEMILIK_VPS.txt" -Value $msgContent -Encoding UTF8
+        Write-Output "File informasi teks berhasil dibuat di desktop."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh

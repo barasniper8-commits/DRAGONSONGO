@@ -21,23 +21,32 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Mengambil Kredensial RDP dari Link Web
+    - name: Mengambil & Memvalidasi Kredensial dari Link Web
       id: fetch-cred
       shell: pwsh
       run: |
         Write-Host "Mengambil data kredensial dari halaman web..."
         try {
-            $response = Invoke-RestMethod -Uri "https://arianto12.lynk.id/p/ganjay" -Method Get -ErrorAction Stop
+            $response = Invoke-RestMethod -Uri "https://arianto12.lynk.id/p/ganjay" -Method Get
             $webContent = $response.ToString()
             
-            if ($webContent -match "USER\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { throw "Format USER tidak ditemukan di web." }
-            if ($webContent -match "PASS\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { throw "Format PASS tidak ditemukan di web." }
+            # Parsing data berdasarkan format HTML yang Anda berikan
+            if ($webContent -match "paskode\s*:\s*([^\s<]+)") { $rdpPassCode = $Matches[1] }
+            if ($webContent -match "User\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] }
+            if ($webContent -match "Password\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] }
+
+            # Validasi ketat: Jika salah satu data kosong / gagal terbaca, gagalkan workflow
+            if (-not $rdpPassCode -or -not $rdpUser -or -not $rdpPass) {
+                Write-Error "GAGAL: Kredensial dari web tidak lengkap atau format tidak sesuai! Workflow dihentikan."
+                exit 1
+            }
 
             Write-Output "user=$rdpUser" >> $env:GITHUB_OUTPUT
             Write-Output "pass=$rdpPass" >> $env:GITHUB_OUTPUT
-            Write-Host "Kredensial berhasil dimuat secara privat."
+            Write-Output "web_paskode=$rdpPassCode" >> $env:GITHUB_OUTPUT
+            Write-Host "Kredensial berhasil divalidasi dan dimuat dengan aman."
         } catch {
-            Write-Error "GAGAL: Tidak dapat mengambil kredensial dari URL. Workflow dihentikan!"
+            Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau terjadi kesalahan sistem! Workflow dihentikan."
             exit 1
         }
 
@@ -83,12 +92,20 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Pass Kode Input Pengguna
+    - name: Verifikasi Pass Kode Input Pengguna vs Web
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}"
-        Write-Host "Pass Kode validasi diterima: $inputPassCode"
-        Write-Host "Sistem berjalan dalam mode aman Cyberpunk tanpa repo secrets."
+        $webPassCode = "${{ steps.fetch-cred.outputs.web_paskode }}"
+        
+        Write-Host "Pass Kode input: $inputPassCode"
+        Write-Host "Pass Kode web: $webPassCode"
+        
+        if ($inputPassCode -ne $webPassCode) {
+            Write-Error "GAGAL: Pass Kode yang Anda masukkan tidak cocok dengan data di web!"
+            exit 1
+        }
+        Write-Host "Verifikasi Pass Kode BERHASIL. Sistem berjalan dalam mode aman Cyberpunk."
 
     - name: Menjaga Workflow Tetap Aktif
       shell: pwsh

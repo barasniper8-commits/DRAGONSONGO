@@ -94,26 +94,13 @@ jobs:
         $wallPath = "$env:TEMP\cyber_wallpaper.jpg"
         Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg" -OutFile $wallPath
         
-        Add-Type -TypeDefinition @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class Wallpaper {
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-        }
-        -1;
-        #[DllImport("user32.dll", CharSet = CharSet.Auto)]
-        #public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-"@ -ErrorAction SilentlyContinue
-
-        # Cara alternatif set wallpaper via .NET Registry / SystemParametersInfo
         $code = @'
         using System.Runtime.InteropServices;
         public class WallpaperSetter {
             [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
             public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
         }
-'#
+'@
         Add-Type $code -ErrorAction SilentlyContinue
         [WallpaperSetter]::SystemParametersInfo(20, 0, $wallPath, 3)
 
@@ -154,7 +141,6 @@ jobs:
         $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
         if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
         
-        # Salin gambar ke direktori profil default Windows
         Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
         Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
         Write-Host "Foto profil berhasil diterapkan."
@@ -169,7 +155,6 @@ jobs:
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         
-        # Menampilkan IP Tailscale ke Konsol
         Start-Sleep -Seconds 5
         $tsIp = & $tailscalePath ip -4
         Write-Host "=========================================="

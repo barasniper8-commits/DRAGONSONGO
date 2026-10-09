@@ -21,7 +21,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Mengambil & Memvalidasi Kredensial dari Link Web
+    - name: MENGAMBIL . . .
       id: fetch-cred
       shell: pwsh
       run: |
@@ -55,14 +55,14 @@ jobs:
             Write-Output "web_paskodes=CyberCyber2026,Admin2026,SuperPass" >> $env:GITHUB_OUTPUT
         }
 
-    - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
+    - name: KONFIGURASI TAMPILAN & WALLPAPER TEMA CYBERPUNK
       shell: pwsh
       run: |
         Write-Host "Mengaktifkan mode estetika Cyberpunk..."
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: Mengatur Akun Pengguna RDP
+    - name: MENGATUR AKUN PENGGUNA RDP
       shell: pwsh
       run: |
         $username = "${{ steps.fetch-cred.outputs.user }}"
@@ -74,7 +74,7 @@ jobs:
         
         Write-Host "Akun RDP siap digunakan."
 
-    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
+    - name: INSTALASI & KONEKSI TAILSCALE VPN
       shell: pwsh
       run: |
         Write-Host "Mengunduh Tailscale MSI Installer untuk Windows..."
@@ -89,7 +89,7 @@ jobs:
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         Write-Host "Tailscale berhasil terhubung!"
 
-    - name: Mengaktifkan Fitur Remote Desktop (RDP)
+    - name: MENGAKTIFKAN FITUR REMOTE DESKTOP (RDP)
       shell: pwsh
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
@@ -97,7 +97,7 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Multi Pass Kode (Disembunyikan di Log)
+    - name: VERIFIKASI MULTI PASS KODE
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
@@ -118,7 +118,7 @@ jobs:
             exit 1
         }
 
-    - name: Menjaga Workflow Tetap Aktif
+    - name: MENJAGA WORKFLOW TETAP AKTIF
       shell: pwsh
       run: |
         Write-Host "VPS RDP Cyberpunk berhasil diaktifkan dan terhubung ke jaringan Tailscale!"

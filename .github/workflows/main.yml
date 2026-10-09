@@ -15,7 +15,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 3
+    timeout-minutes: 360
+
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -26,19 +27,18 @@ jobs:
       run: |
         Write-Host "Mengambil data kredensial dari halaman web..."
         try {
-            $response = Invoke-RestMethod -Uri "https://arianto12.lynk.id/p/ganjay" -Method Get
+            $response = Invoke-RestMethod -Uri "https://arianto12.lynk.id/p/ganjay" -Method Get -ErrorAction Stop
             $webContent = $response.ToString()
             
-            if ($webContent -match "USER\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { $rdpUser = "cyberpunk_user" }
-            if ($webContent -match "PASS\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { $rdpPass = "CyberP@ss2026!" }
+            if ($webContent -match "USER\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { throw "Format USER tidak ditemukan di web." }
+            if ($webContent -match "PASS\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { throw "Format PASS tidak ditemukan di web." }
 
             Write-Output "user=$rdpUser" >> $env:GITHUB_OUTPUT
             Write-Output "pass=$rdpPass" >> $env:GITHUB_OUTPUT
             Write-Host "Kredensial berhasil dimuat secara privat."
         } catch {
-            Write-Warning "Gagal mengambil data dari URL, menggunakan fallback kredensial aman."
-            Write-Output "user=cyberpunk_admin" >> $env:GITHUB_OUTPUT
-            Write-Output "pass=CyberP@ss2026!" >> $env:GITHUB_OUTPUT
+            Write-Error "GAGAL: Tidak dapat mengambil kredensial dari URL. Workflow dihentikan!"
+            exit 1
         }
 
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk

@@ -34,11 +34,11 @@ jobs:
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
-        
-        # Mendaftarkan masking terlebih dahulu sebelum perintah cetak apapun
         [Console]::WriteLine("::add-mask::$targetUrl")
         
-        Write-Host "Mengambil data dari halaman web privat..."
+        # Menyembunyikan perintah agar tidak tampil di log
+        $PSDefaultParameterValues['Out-Default:Verbose'] = $false
+        
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
@@ -79,7 +79,7 @@ jobs:
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Semua data (Passcode, User, Password) berhasil terbaca dan divalidasi dari web!"
+            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
         } catch {
             Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau terjadi kesalahan jaringan! Workflow dihentikan."
             exit 1
@@ -88,7 +88,6 @@ jobs:
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
       shell: pwsh
       run: |
-        Write-Host "Mengaktifkan mode estetika Cyberpunk..."
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
@@ -107,37 +106,30 @@ jobs:
         Write-Host "::add-mask::$inputPass"
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
-        # Validasi apakah User yang diinput terdaftar di web
         if (-not ($validUsers -contains $inputUser)) {
             Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
             exit 1
         }
         
-        # Validasi kecocokan password
         if (-not ($validPasswords -contains $inputPass)) {
             Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
             exit 1
         }
 
-        Write-Host "Membuat akun RDP dengan username: $inputUser"
         net user $inputUser $inputPass /add
         net localgroup administrators $inputUser /add
-        Write-Host "Akun RDP berhasil dibuat dan berstatus Administrator."
+        Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
-        Write-Host "Mengunduh Tailscale MSI Installer untuk Windows..."
         $installer = "$env:TEMP\tailscale-setup.msi"
         Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
-        
-        Write-Host "Menginstal Tailscale secara silent..."
         Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
         
-        Write-Host "Menghubungkan ke Tailscale..."
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
-        Write-Host "Tailscale berhasil terhubung!"
+        Write-Host "Status: Tailscale berhasil terhubung."
 
     - name: Mengaktifkan Fitur Remote Desktop (RDP)
       shell: pwsh
@@ -145,7 +137,7 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Write-Host "RDP Service aktif."
+        Write-Host "Status: RDP Service aktif."
 
     - name: Verifikasi Passcode (Disembunyikan di Log)
       shell: pwsh
@@ -159,9 +151,8 @@ jobs:
             Write-Host "::add-mask::$code"
         }
         
-        Write-Host "Memverifikasi Passcode..."
         if ($validCodes -contains $inputPassCode) {
-            Write-Host "Verifikasi Passcode BERHASIL!"
+            Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
             Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
             exit 1

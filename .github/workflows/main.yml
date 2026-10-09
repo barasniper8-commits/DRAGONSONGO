@@ -33,7 +33,6 @@ jobs:
       id: fetch-cred
       shell: pwsh
       run: |
-        # Menggunakan metode pemecahan karakter agar teks URL tidak terbaca mentah oleh parser log GitHub
         $u1 = "https://arianto1"
         $u2 = "2.lynk.id/p/ganjay"
         $targetUrl = "$u1$u2"
@@ -69,13 +68,11 @@ jobs:
                 $global:validPasswords = @()
             }
 
-            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total tanpa membocorkan info
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1
             }
 
-            # Simpan data ke environment
             Write-Output "web_paskodes=$($global:validPassCodes -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
@@ -92,7 +89,35 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: Verifikasi & Pembuatan Akun RDP
+        # Mengatur Wallpaper Windows secara otomatis
+        Write-Host "Mengunduh dan menerapkan Wallpaper Windows..."
+        $wallPath = "$env:TEMP\cyber_wallpaper.jpg"
+        Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg" -OutFile $wallPath
+        
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+        public class Wallpaper {
+            [DllImport("user32.dll", CharSet = CharSet.Auto)]
+            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+        }
+        -1;
+        #[DllImport("user32.dll", CharSet = CharSet.Auto)]
+        #public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+"@ -ErrorAction SilentlyContinue
+
+        # Cara alternatif set wallpaper via .NET Registry / SystemParametersInfo
+        $code = @'
+        using System.Runtime.InteropServices;
+        public class WallpaperSetter {
+            [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+        }
+'#
+        Add-Type $code -ErrorAction SilentlyContinue
+        [WallpaperSetter]::SystemParametersInfo(20, 0, $wallPath, 3)
+
+    - name: Verifikasi & Pembuatan Akun RDP & Foto Profil
       shell: pwsh
       run: |
         $inputUser = "${{ github.event.inputs.input_user }}".Trim()
@@ -121,6 +146,19 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
+        # Mengatur Foto Profil Pengguna Windows
+        Write-Host "Mengatur foto profil akun Windows..."
+        $avatarPath = "$env:TEMP\cyber_avatar.jpg"
+        Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg" -OutFile $avatarPath
+        
+        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
+        if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
+        
+        # Salin gambar ke direktori profil default Windows
+        Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
+        Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
+        Write-Host "Foto profil berhasil diterapkan."
+
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
@@ -130,7 +168,13 @@ jobs:
         
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
-        Write-Host "Status: Tailscale berhasil terhubung."
+        
+        # Menampilkan IP Tailscale ke Konsol
+        Start-Sleep -Seconds 5
+        $tsIp = & $tailscalePath ip -4
+        Write-Host "=========================================="
+        Write-Host "IP TAILSCALE VPS ANDA: $tsIp" -ForegroundColor Cyan
+        Write-Host "=========================================="
 
     - name: Mengaktifkan Fitur Remote Desktop (RDP)
       shell: pwsh

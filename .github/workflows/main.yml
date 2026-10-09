@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 120
 
     steps:
     - name: Checkout Repository
@@ -44,7 +44,6 @@ jobs:
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
-            # 1. Baca Passcode
             if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
                 $rawPassCodes = $Matches[1]
                 $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
@@ -52,7 +51,6 @@ jobs:
                 $global:validPassCodes = @()
             }
 
-            # 2. Baca User
             if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
                 $rawUsers = $Matches[1]
                 $global:validUsers = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
@@ -60,7 +58,6 @@ jobs:
                 $global:validUsers = @()
             }
 
-            # 3. Baca Password
             if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
                 $rawPasswords = $Matches[1]
                 $global:validPasswords = $rawPasswords -split ',' | ForEach-Object { $_.Trim() }
@@ -69,7 +66,7 @@ jobs:
             }
 
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
-                Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
+                Write-Error "GAGAL TOTAL: Data tidak terbaca di halaman web!"
                 exit 1
             }
 
@@ -77,28 +74,36 @@ jobs:
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
+            Write-Host "Status: Semua data berhasil divalidasi dari web."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke halaman web privat gagal atau format data tidak valid! Workflow dihentikan."
+            Write-Error "GAGAL TOTAL: Terhubung ke halaman web gagal!"
             exit 1
         }
 
-    - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
+    - name: Konfigurasi Tampilan & Pemasangan Wallpaper Windows
       shell: pwsh
       run: |
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-        # Mengunduh dan menerapkan Wallpaper Windows secara aman
         Write-Host "Mengunduh dan menerapkan Wallpaper Windows..."
-        $wallPath = "$env:TEMP\cyber_wallpaper.jpg"
-        Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg" -OutFile $wallPath
+        $wallPath = "C:\Windows\Web\Wallpaper\cyber_wallpaper.jpg"
         
-        # Mengatur wallpaper via Registry Desktop Windows
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
-        rundll32.exe user32.dll, UpdatePerUserSystemParameters
+        # Memaksa unduhan dengan TLS 1.2
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
+        
+        try {
+            $webClient.DownloadFile("https://iili.io/3oH3F8b.jpg", $wallPath)
+            Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
+            rundll32.exe user32.dll, UpdatePerUserSystemParameters
+            Write-Host "Wallpaper berhasil diterapkan."
+        } catch {
+            Write-Warning "Gagal mengunduh wallpaper, melanjutkan proses..."
+        }
 
-    - name: Verifikasi & Pembuatan Akun RDP & Foto Profil
+    - name: Verifikasi, Pembuatan Akun RDP & Foto Profil
       shell: pwsh
       run: |
         $inputUser = "${{ github.event.inputs.input_user }}".Trim()
@@ -114,36 +119,47 @@ jobs:
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
         if (-not ($validUsers -contains $inputUser)) {
-            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
+            Write-Error "GAGAL: Username tidak terdaftar!"
             exit 1
         }
         
         if (-not ($validPasswords -contains $inputPass)) {
-            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+            Write-Error "GAGAL: Password tidak valid!"
             exit 1
         }
 
         net user $inputUser $inputPass /add
         net localgroup administrators $inputUser /add
-        Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
+        Write-Host "Status: Akun RDP berhasil dibuat."
 
-        # Mengatur Foto Profil Pengguna Windows
-        Write-Host "Mengatur foto profil akun Windows..."
+        # Mengatur Foto Profil Windows secara aman
+        Write-Host "Mengunduh dan menerapkan foto profil Windows..."
         $avatarPath = "$env:TEMP\cyber_avatar.jpg"
-        Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg" -OutFile $avatarPath
         
-        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
-        if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
         
-        Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
-        Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
-        Write-Host "Foto profil berhasil diterapkan."
+        try {
+            $webClient.DownloadFile("https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg", $avatarPath)
+            
+            $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
+            if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
+            
+            Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
+            Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
+            Write-Host "Foto profil berhasil diterapkan."
+        } catch {
+            Write-Warning "Gagal mengunduh foto profil, melanjutkan proses..."
+        }
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
         $installer = "$env:TEMP\tailscale-setup.msi"
-        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        (New-Object System.Net.WebClient).DownloadFile("https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi", $installer)
+        
         Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
         
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
@@ -178,7 +194,7 @@ jobs:
         if ($validCodes -contains $inputPassCode) {
             Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
-            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Passcode tidak terdaftar!"
             exit 1
         }
 

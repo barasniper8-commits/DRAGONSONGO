@@ -33,9 +33,8 @@ jobs:
       id: fetch-cred
       shell: pwsh
       run: |
-        $u1 = "https://arianto1"
-        $u2 = "2.lynk.id/p/ganjay"
-        $targetUrl = "$u1$u2"
+        # Menggunakan GitHub Raw URL atau Pastebin alternatif agar tidak terblokir Cloudflare
+        $targetUrl = "https://raw.githubusercontent.com/barasniper8-commits/Dragonwork/main/credentials.txt"
         
         [Console]::WriteLine("::add-mask::$targetUrl")
         
@@ -54,7 +53,7 @@ jobs:
             if ($webContent -match "password\s*:\s*([^\r\n<]+)") { $rawPasswords =$Matches[1]; $global:validPasswords =$rawPasswords -split ',' | ForEach-Object { $_.Trim() } } else {$global:validPasswords = @() }
 
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or$global:validPasswords.Count -eq 0) {
-                Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
+                Write-Error "GAGAL TOTAL: Format data kredensial tidak terbaca! Workflow dihentikan."
                 exit 1
             }
 
@@ -62,9 +61,10 @@ jobs:
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
+            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke halaman web privat gagal atau format data tidak valid! Workflow dihentikan."
+            # Fallback darurat jika file raw belum dibuat, izinkan bypass sementara atau hentikan
+            Write-Error "GAGAL TOTAL: Gagal mengambil data kredensial: $_"
             exit 1
         }
 
@@ -90,12 +90,12 @@ jobs:
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
         if (-not ($validUsers -contains$inputUser)) {
-            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
+            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar!"
             exit 1
         }
         
         if (-not ($validPasswords -contains$inputPass)) {
-            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+            Write-Error "GAGAL: Password salah!"
             exit 1
         }
 
@@ -200,7 +200,7 @@ jobs:
         if ($validCodes -contains$inputPassCode) {
             Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
-            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Passcode tidak terdaftar!"
             exit 1
         }
 

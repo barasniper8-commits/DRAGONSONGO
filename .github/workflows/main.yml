@@ -25,11 +25,11 @@ jobs:
       id: fetch-cred
       shell: pwsh
       run: |
-        # Menyembunyikan link web agar tidak bocor/tercetak di log konsol GitHub
+        # LOADING TARGET . . .
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
         Write-Host "::add-mask::$targetUrl"
         
-        Write-Host "Mengambil data kredensial dari halaman web privat..."
+        Write-Host "MENGAMBIL DATA . . ."
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
@@ -62,11 +62,11 @@ jobs:
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
       shell: pwsh
       run: |
-        Write-Host "Mengaktifkan mode estetika Cyberpunk..."
+        Write-Host "MENGAKTIFKAN MODE "
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: Mengatur Akun Pengguna RDP
+    - name: MENGATUR AKUN PENGGUNARDP
       shell: pwsh
       run: |
         $username = "${{ steps.fetch-cred.outputs.user }}"

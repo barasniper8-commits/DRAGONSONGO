@@ -33,7 +33,7 @@ jobs:
       id: fetch-cred
       shell: pwsh
       run: |
-        $targetUrl = "https://arianto12.lynk.id/p/ganjay"
+        $targetUrl = "https://arianto12.lynk.id/"
         [Console]::WriteLine("::add-mask::$targetUrl")
         
         try {

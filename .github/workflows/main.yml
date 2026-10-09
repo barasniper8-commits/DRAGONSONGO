@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository
@@ -87,21 +87,18 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
         Write-Host "Mengunduh dan menerapkan Wallpaper Windows..."
-        $wallPath = "C:\Windows\Web\Wallpaper\cyber_wallpaper.jpg"
+        $wallPath = "C:\Users\runneradmin\AppData\Local\Temp\cyber_wallpaper.jpg"
         
-        # Memaksa unduhan dengan TLS 1.2
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $webClient = New-Object System.Net.WebClient
         $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
         
-        try {
-            $webClient.DownloadFile("https://iili.io/3oH3F8b.jpg", $wallPath)
-            Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
-            rundll32.exe user32.dll, UpdatePerUserSystemParameters
-            Write-Host "Wallpaper berhasil diterapkan."
-        } catch {
-            Write-Warning "Gagal mengunduh wallpaper, melanjutkan proses..."
-        }
+        # Menggunakan mirror link gambar langsung agar sukses 100%
+        $webClient.DownloadFile("https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1920&auto=format&fit=crop", $wallPath)
+        
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
+        rundll32.exe user32.dll, UpdatePerUserSystemParameters
+        Write-Host "Wallpaper berhasil diterapkan."
 
     - name: Verifikasi, Pembuatan Akun RDP & Foto Profil
       shell: pwsh
@@ -132,26 +129,21 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP berhasil dibuat."
 
-        # Mengatur Foto Profil Windows secara aman
-        Write-Host "Mengunduh dan menerapkan foto profil Windows..."
+        # Mengatur Foto Profil Windows
+        Write-Host "Mengatur foto profil Windows..."
         $avatarPath = "$env:TEMP\cyber_avatar.jpg"
         
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $webClient = New-Object System.Net.WebClient
         $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
+        $webClient.DownloadFile("https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg", $avatarPath)
         
-        try {
-            $webClient.DownloadFile("https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg", $avatarPath)
-            
-            $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
-            if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
-            
-            Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
-            Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
-            Write-Host "Foto profil berhasil diterapkan."
-        } catch {
-            Write-Warning "Gagal mengunduh foto profil, melanjutkan proses..."
-        }
+        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
+        if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
+        
+        Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
+        Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
+        Write-Host "Foto profil berhasil diterapkan."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh

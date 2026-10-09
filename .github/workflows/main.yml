@@ -31,14 +31,11 @@ jobs:
             $response = Invoke-WebRequest -Uri "https://arianto12.lynk.id/p/ganjay" -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
-            # Mengambil semua pass kode yang cocok (mendukung banyak pass kode dalam HTML, misal dipisahkan koma atau baris baru)
-            # Format di HTML bisa berupa: paskode: CyberCyber2026, PassCode2, PassCode3
             if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
                 $rawPassCodes = $Matches[1]
-                # Membersihkan spasi dan memisahkan jika ada banyak kode menggunakan koma
                 $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                $global:validPassCodes = @("CyberCyber2026") # Fallback default
+                $global:validPassCodes = @("CyberCyber2026")
             }
 
             if ($webContent -match "User\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { $rdpUser = "cyberpunk_admin" }
@@ -47,13 +44,12 @@ jobs:
             Write-Output "user=$rdpUser" >> $env:GITHUB_OUTPUT
             Write-Output "pass=$rdpPass" >> $env:GITHUB_OUTPUT
             
-            # Menyimpan daftar pass kode ke environment runner
             $passCodesString = $global:validPassCodes -join ","
             Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Kredensial dan daftar Multi-Passcode berhasil dimuat."
+            Write-Host "Kredensial berhasil dimuat dengan aman."
         } catch {
-            Write-Host "Warning: Gagal terhubung, menggunakan kredensial & pass code default..."
+            Write-Host "Warning: Gagal terhubung, menggunakan kredensial default sistem..."
             Write-Output "user=cyberpunk_admin" >> $env:GITHUB_OUTPUT
             Write-Output "pass=CyberP@ss2026!" >> $env:GITHUB_OUTPUT
             Write-Output "web_paskodes=CyberCyber2026,Admin2026,SuperPass" >> $env:GITHUB_OUTPUT
@@ -101,20 +97,24 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Multi Pass Kode Input Pengguna
+    - name: Verifikasi Multi Pass Kode (Disembunyikan di Log)
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
         $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
         $validCodes = $webPassCodesString -split ','
         
-        Write-Host "Pass Kode yang Anda masukkan: $inputPassCode"
-        Write-Host "Daftar Pass Kode yang diizinkan dari web: $webPassCodesString"
+        # Menyembunyikan pass code agar otomatis di-masking (sensor) oleh GitHub Actions
+        Write-Host "::add-mask::$inputPassCode"
+        foreach ($code in $validCodes) {
+            Write-Host "::add-mask::$code"
+        }
         
+        Write-Host "Memverifikasi Pass Kode yang dimasukkan..."
         if ($validCodes -contains $inputPassCode) {
-            Write-Host "Verifikasi Pass Kode BERHASIL! Kode cocok dengan salah satu daftar di web."
+            Write-Host "Verifikasi Pass Kode BERHASIL! (Kode valid)"
         } else {
-            Write-Error "GAGAL: Pass Kode '$inputPassCode' tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Pass Kode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
             exit 1
         }
 

@@ -36,7 +36,6 @@ jobs:
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
         [Console]::WriteLine("::add-mask::$targetUrl")
         
-        # Menyembunyikan perintah agar tidak tampil di log
         $PSDefaultParameterValues['Out-Default:Verbose'] = $false
         
         try {
@@ -68,7 +67,7 @@ jobs:
                 $global:validPasswords = @()
             }
 
-            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total!
+            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total tanpa menampilkan link
             if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1
@@ -81,7 +80,7 @@ jobs:
             
             Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau terjadi kesalahan jaringan! Workflow dihentikan."
+            Write-Error "GAGAL TOTAL: Terhubung ke halaman web privat gagal atau format data tidak valid! Workflow dihentikan."
             exit 1
         }
 

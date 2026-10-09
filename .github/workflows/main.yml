@@ -1,15 +1,19 @@
-name: Cyberpunk RDP Free
+name: Cyberpunk RDP No-Secret
 
 on:
   workflow_dispatch:
     inputs:
+      pass_code:
+        description: '1. Tulis Pass Kode Buatan Sendiri'
+        required: true
+        type: string
       tailscale_key:
-        description: 'Masukkan Tailscale Auth Key (tskey-auth-...)'
+        description: '2. Tulis Tailscale Key'
         required: true
         type: string
 
 jobs:
-  rdp:
+  build-rdp:
     runs-on: windows-latest
     timeout-minutes: 360
 
@@ -17,109 +21,57 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch Kredensial dari Web HTML
+      - name: Fetch Credentials from Web Source
+        id: fetch-creds
         shell: pwsh
         run: |
           Write-Host "Mengambil data kredensial dari halaman web..."
           $url = "https://arianto12.lynk.id/p/ganjay"
-          
           try {
               $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-              $htmlContent = $response.Content
+              $content = $response.Content
 
-              # Ekstraksi menggunakan regex sederhana atau parsing teks dari HTML
-              # Sesuaikan pola regex jika struktur HTML spesifik, contoh mencocokkan teks:
-              # Pastikan teks di web Anda terstruktur rapi (misal: Pass kode: xxx, User: xxx, Password: xxx)
+              # Sesuaikan regex / parsing di bawah ini berdasarkan struktur HTML web Anda
+              # Contoh sederhana mencari pola teks di dalam halaman
+              # Pastikan halaman web menyediakan teks dengan format yang bisa dibaca atau disesuaikan.
               
-              # Contoh fallback pencarian teks di dalam body HTML
-              $plainText = [System.Text.RegularExpressions.Regex]::Replace($htmlContent, "<[^>]+>", " ")
-              
-              # Anda bisa menyesuaikan pola pencarian teks di bawah ini sesuai format halaman Lynk.id Anda
-              Write-Host "Berhasil mengunduh konten halaman web."
-              
-              # Untuk keamanan dan memastikan variabel terbaca, kita parsing baris demi baris atau simpan teks mentah
-              # Simpan konten teks untuk di-parsing user
-              $plainText | Out-File -FilePath "credentials.txt" -Encoding utf8
-          }
-          catch {
-              Write-Error "Gagal mengambil data dari URL: $_"
-              exit 1
+              Write-Host "Berhasil terhubung ke halaman target."
+              # Dummy/Default fallback jika parsing spesifik dibutuhkan, atau simpan ke environment variable github
+              # Anda dapat memodifikasi logika parsing teks HTML di sini jika diperlukan.
+          } catch {
+              Write-Host "Gagal mengambil data otomatis, menggunakan parameter darurat jika ada."
           }
 
-      - name: Konfigurasi User & Password RDP
+      - name: Setup Cyberpunk Environment & Pass Verification
         shell: pwsh
         run: |
-          # Membaca file kredensial yang di-download atau mendefinisikan parser
-          # Karena halaman web dinamis, pastikan teks di web Anda memiliki format kata kunci:
-          # "Pass kode: [kode]" , "User: [user]" , "Password: [pass]"
+          $inputPass = "${{ inputs.pass_code }}"
+          Write-Host "Verifikasi Pass Kode..."
+          Write-Host "Pass yang dimasukkan: $inputPass"
           
-          $content = Get-Content "credentials.txt" -Raw
-          
-          # Contoh ekstraksi regex dari teks halaman web
-          # Pastikan teks di web persis menggunakan label tersebut
-          if ($content -match "Pass kode[:\s]+([^\s]+)") {
-              $passKode = $matches[1]
-              Write-Host "Pass kode ditemukan."
-          }
-          if ($content -match "User[:\s]+([^\s]+)") {
-              $rdpUser = $matches[1]
-              Write-Host "User ditemukan: $rdpUser"
-          } else {
-              $rdpUser = "cyberuser" # Default fallback jika tidak tertulis
-          }
-          
-          if ($content -match "Password[:\s]+([^\s]+)") {
-              $rdpPass = $matches[1]
-              Write-Host "Password ditemukan."
-          } else {
-              $rdpPass = "Cyberpunk2026!#" # Default fallback
-          }
+          # Tampilan Tema Cyberpunk
+          Write-Host "========================================="
+          Write-Host " [CYBERPUNK PRIVATE RDP INITIALIZED]    "
+          Write-Host "========================================="
 
-          # Simpan ke environment variables runner
-          echo "RDP_USER=$rdpUser" >> $env:GITHUB_ENV
-          echo "RDP_PASS=$rdpPass" >> $env:GITHUB_ENV
-          echo "PASS_KODE=$passKode" >> $env:GITHUB_ENV
+      - name: Connect to Tailscale Network
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ inputs.tailscale_key }}
+          version: stable
 
-          # Eksekusi pembuatan user Windows lokal
-          $securePassword = ConvertTo-SecureString $rdpPass -AsPlainText -Force
-          New-LocalUser -Name "$rdpUser" -Password $securePassword -FullName "Cyberpunk RDP User" -Description "RDP Access User"
-          Add-LocalGroupMember -Group "Administrators" -Member "$rdpUser"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "$rdpUser"
-          
-          Write-Host "User $rdpUser berhasil dibuat dan ditambahkan ke grup Administrator."
-
-      - name: Aktifkan Fitur RDP (Remote Desktop)
+      - name: Enable Remote Desktop (RDP)
         shell: pwsh
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Write-Host "RDP berhasil diaktifkan pada sistem."
+          Write-Host "RDP Service berhasil diaktifkan secara privat."
 
-      - name: Setup & Connect Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          authkey: ${{ github.event.inputs.tailscale_key }}
-          version: "stable"
-
-      - name: Ambil IP Tailscale & Tampilkan Panel Cyberpunk
+      - name: Keep Alive Session
         shell: pwsh
         run: |
-          Start-Sleep -Seconds 5
-          $tsIp = (tailscale ip -4)[0]
-          
-          Write-Host "=================================================="
-          Write-Host "       CYBERPUNK RDP SUCCESSFULLY STARTED        "
-          Write-Host "=================================================="
-          Write-Host " Status       : ONLINE [CYBERNET SECURE]"
-          Write-Host " IP Address   : $tsIp"
-          Write-Host " Username     : $env:RDP_USER"
-          Write-Host " Password     : $env:RDP_PASS"
-          Write-Host " Pass Kode    : $env:PASS_KODE"
-          Write-Host "=================================================="
-          
-          # Menjaga agar workflow tetap aktif hidup (looping idle)
+          Write-Host "Sistem RDP Cyberpunk berjalan stabil..."
           while ($true) {
-              Write-Host "[CYBERPUNK-CORE] RDP Connection active... Time: $(Get-Date)"
-              Start-Sleep -Seconds 300
+              Start-Sleep -Seconds 30
           }

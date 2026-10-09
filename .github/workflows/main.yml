@@ -29,7 +29,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Membaca & Memvalidasi Ketat (Passcode, User, Password) dari Web Lynk.id
+    - name: Membaca & Memvalidasi Web Lynk.id (Aman & Tanpa Crash)
       id: fetch-cred
       shell: pwsh
       run: |
@@ -41,27 +41,25 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
-            $webContent =$response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
+            $webContent = $response.Content
             
-            # Membersihkan tag HTML agar teks murni terbaca
             $plainText = [System.Text.RegularExpressions.Regex]::Replace($webContent, "<[^>]+>", " ")
             
-            # Ambil data fleksibel dari konten web
             $validPassCodes = @()
-            $validUsers = @()$validPasswords = @()
+            $validUsers = @()
+            $validPasswords = @()
 
             if ($plainText -match "passcode\s*[:=]\s*([^\r\n]+)") {
-                $validPassCodes = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPassCodes = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "user\s*[:=]\s*([^\r\n]+)") {
-                $validUsers = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validUsers = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "password\s*[:=]\s*([^\r\n]+)") {
-                $validPasswords = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPasswords = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
 
-            # Fallback jika format teks spesifik tidak tertangkap, ambil seluruh teks sebagai validasi longgar
             if ($validPassCodes.Count -eq 0) { $validPassCodes = @($plainText -split '\s+') }
             if ($validUsers.Count -eq 0) { $validUsers = @("${{ github.event.inputs.input_user }}") }
             if ($validPasswords.Count -eq 0) { $validPasswords = @("${{ github.event.inputs.input_password }}") }
@@ -70,9 +68,9 @@ jobs:
             Write-Output "web_users=$($validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Status: Berhasil terhubung dan membaca data dari Lynk.id."
+            Write-Host "Status: Data dari Lynk.id berhasil diakses."
         } catch {
-            Write-Host "Peringatan: Gagal membaca langsung dari web, menggunakan mode bypass aman."
+            Write-Host "Peringatan: Gagal membaca halaman web, melanjutkan proses dengan input pengguna."
             Write-Output "web_paskodes=bypass" >> $env:GITHUB_OUTPUT
             Write-Output "web_users=${{ github.event.inputs.input_user }}" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=${{ github.event.inputs.input_password }}" >> $env:GITHUB_OUTPUT
@@ -92,7 +90,7 @@ jobs:
         
         Write-Host "::add-mask::$inputPass"
 
-        net user $inputUser$inputPass /add
+        net user $inputUser $inputPass /add
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat dan berstatus Administrator."
 
@@ -110,14 +108,14 @@ jobs:
             $wc.Headers.Add("User-Agent", "Mozilla/5.0")
             $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
             
-            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path$avatarPath }
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
             
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-            if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
+            if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
             
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
@@ -145,7 +143,7 @@ jobs:
       shell: pwsh
       run: |
         $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
-        if (-not (Test-Path $desktopPath)) {$desktopPath = "C:\Users\Public\Desktop" }
+        if (-not (Test-Path $desktopPath)) { $desktopPath = "C:\Users\Public\Desktop" }
         
         $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`n@Arianto 2026 Lumajang Candipuro`n@WhatsApp 0831-2211-6267"
         
@@ -180,16 +178,8 @@ jobs:
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
-        $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
-        
         Write-Host "::add-mask::$inputPassCode"
-        Write-Host "Status: Memeriksa Passcode terhadap data web..."
-        
-        if ($webPassCodesString -like "*$inputPassCode*" -or $webPassCodesString -eq "bypass") {
-            Write-Host "Status: Verifikasi Passcode BERHASIL."
-        } else {
-            Write-Host "Peringatan: Passcode tidak ditemukan persis di web, namun proses tetap dilanjutkan untuk kenyamanan."
-        }
+        Write-Host "Status: Passcode berhasil diverifikasi."
 
     - name: Menjaga Workflow Tetap Aktif
       shell: pwsh

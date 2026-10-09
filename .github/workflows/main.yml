@@ -34,6 +34,7 @@ jobs:
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
+        # Menyembunyikan link halaman web agar tidak muncul/bocor di log GitHub
         Write-Host "::add-mask::$targetUrl"
         
         Write-Host "Mengambil data dari halaman web privat..."
@@ -111,7 +112,7 @@ jobs:
             exit 1
         }
         
-        # Validasi kecocokan indeks user dan password (opsional, atau pastikan password valid)
+        # Validasi kecocokan password
         if (-not ($validPasswords -contains $inputPass)) {
             Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
             exit 1

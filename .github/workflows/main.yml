@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository
@@ -89,13 +89,14 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-        # Mengunduh dan menerapkan Wallpaper Windows
+        # Mengunduh dan menerapkan Wallpaper Windows secara aman
         Write-Host "Mengunduh dan menerapkan Wallpaper Windows..."
         $wallPath = "$env:TEMP\cyber_wallpaper.jpg"
         Invoke-WebRequest -Uri "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg" -OutFile $wallPath
         
-        Add-Type -TypeDefinition '[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);' -Name "Wallpaper" -Namespace "Win32" -ErrorAction SilentlyContinue
-        [Win32.Wallpaper]::SystemParametersInfo(20, 0, $wallPath, 3)
+        # Mengatur wallpaper via Registry Desktop Windows
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallPath
+        rundll32.exe user32.dll, UpdatePerUserSystemParameters
 
     - name: Verifikasi & Pembuatan Akun RDP & Foto Profil
       shell: pwsh

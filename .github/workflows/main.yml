@@ -34,8 +34,9 @@ jobs:
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
-        # Menyembunyikan link halaman web agar tidak muncul/bocor di log GitHub
-        Write-Host "::add-mask::$targetUrl"
+        
+        # Mendaftarkan masking terlebih dahulu sebelum perintah cetak apapun
+        [Console]::WriteLine("::add-mask::$targetUrl")
         
         Write-Host "Mengambil data dari halaman web privat..."
         try {

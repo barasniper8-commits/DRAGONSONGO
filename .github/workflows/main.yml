@@ -118,7 +118,7 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
-    - name: Set Foto Profil & Wallpaper Desktop
+    - name: Set Foto Profil, Wallpaper Desktop & Notepad Pesan
       env:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
@@ -149,7 +149,7 @@ jobs:
         }
 
         # 2. Download & Pasang Wallpaper Desktop
-        $wallpaperUrl = " https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg "
+        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
         try {
             $wcW = New-Object System.Net.WebClient
             $wcW.Headers.Add("User-Agent", "Mozilla/5.0")
@@ -162,6 +162,28 @@ jobs:
         } catch {
             Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
         }
+
+        # 3. Membuat Notepad Pesan Otomatis saat Desktop Terbuka
+        $startupDir = "C:\Users\Public\Desktop"
+        $noteContent = @"
+MILIK ARIANTO
+======================
+Desktop free terimkasih sudah beli token
+Dan semoga lancar rezeki sehat selulu.
+======================
+@Arianto 2026 Lumajang candipuro
+@Whatsapp 0831-2211-6267
+"@
+        $notePath = "$startupDir\PENTING_BACA_INI.txt"
+        Set-Content -Path $notePath -Value $noteContent -Encoding UTF8
+        
+        # Buat script agar Notepad langsung terbuka otomatis saat user masuk ke RDP
+        $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+        if (!(Test-Path $startupFolder)) { New-Item -ItemType Directory -Force -Path $startupFolder }
+        $vbsPath = "$startupFolder\open_note.vbs"
+        $vbsContent = 'CreateObject("Wscript.Shell").Run "notepad.exe C:\Users\Public\Desktop\PENTING_BACA_INI.txt", 1, False'
+        Set-Content -Path $vbsPath -Value $vbsContent -Encoding UTF8
+        Write-Output "Notepad otomatis berhasil diatur."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh

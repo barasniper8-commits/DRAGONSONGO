@@ -64,10 +64,14 @@ jobs:
     - name: Instalasi & Koneksi Tailscale VPN (Windows Manual)
       shell: pwsh
       run: |
-        Write-Host "Mengunduh dan menginstal Tailscale untuk Windows..."
-        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.msi" -OutFile "tailscale-setup.msi"
-        Start-Process msiexec.exe -Wait -ArgumentList '/i tailscale-setup.msi /quiet /norestart'
+        Write-Host "Mengunduh installer Tailscale untuk Windows..."
+        $installer = "$env:TEMP\tailscale-setup.exe"
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup.exe" -OutFile $installer
         
+        Write-Host "Menginstal Tailscale secara silent..."
+        Start-Process -FilePath $installer -ArgumentList "/quiet", "/norestart" -Wait
+        
+        Write-Host "Menghubungkan ke Tailscale..."
         $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         Write-Host "Tailscale berhasil terhubung!"

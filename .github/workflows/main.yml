@@ -83,38 +83,26 @@ jobs:
             exit 1
         }
 
-    # 1. Download & Pasang Foto Profil User
-          $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
-          $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
-          
-          try {
-              Invoke-WebRequest -Uri $avatarUrl -OutFile "C:\avatar.jpg" -UseBasicParsing -ErrorAction Stop
-              Copy-Item "C:\avatar.jpg" "$avatarPath\user.png" -Force
-              Copy-Item "C:\avatar.jpg" "$avatarPath\user-192.png" -Force
-              Copy-Item "C:\avatar.jpg" "$avatarPath\user-448.png" -Force
-              Copy-Item "C:\avatar.jpg" "$avatarPath\user-bmp.png" -Force
-              
-              $userSid = (Get-LocalUser -Name$env:RDP_USER).SID.Value
-              $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-              if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
-              New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
-              New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
-              Write-Output "Foto profil berhasil dipasang."
-          } catch {
-              Write-Output "Peringatan: Gagal mengunduh foto profil, melewati bagian ini..."
-          }
+    - name: Konfigurasi Tampilan Tema Cyberpunk & Wallpaper
+      shell: pwsh
+      run: |
+        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
+        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-          # 2. Download & Pasang Wallpaper Desktop
-          $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
-          try {
-              Invoke-WebRequest -Uri $wallpaperUrl -OutFile "C:\wallpaper.png" -UseBasicParsing -ErrorAction Stop
-              takeown /f "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
-              icacls "C:\Windows\Web\Wallpaper\Windows\img0.jpg" /grant Administrators:F
-              Copy-Item "C:\wallpaper.png" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
-              Write-Output "Wallpaper berhasil dipasang."
-          } catch {
-              Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
-          }
+        # Download & Pasang Wallpaper Desktop
+        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjop-E8G49vpTToC_LXtEPy0pIH_p1n4ySaNytQ0EIg8FdwYxBzha_c3HG2BKgY6XNjslrnrS7Am1kIfLX_H_nhEMwWVPJiib4Tx6IaA9lrfYVdWplx5eDLLD0YI5aAQ6BDiwzHwcIRpYLZCw0xAigHnD5vqzafHxsl0xo-EbcJdszl2oelm9HbIK3SaPc/s1600/1000186156.jpg"
+        try {
+            $wc = New-Object System.Net.WebClient
+            $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+            $wc.DownloadFile($wallpaperUrl, "C:\wallpaper.jpg")
+            
+            Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value "C:\wallpaper.jpg"
+            Add-Type -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);' -Name "Wallpaper" -Namespace "Win32" -ErrorAction SilentlyContinue
+            [Win32.Wallpaper]::SystemParametersInfo(20, 0, "C:\wallpaper.jpg", 3)
+            Write-Host "Wallpaper berhasil dipasang."
+        } catch {
+            Write-Host "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
+        }
 
     - name: Verifikasi & Pembuatan Akun RDP & Foto Profil
       shell: pwsh
@@ -145,19 +133,31 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
-        # Mengunduh dan Menerapkan Foto Profil Akun Windows
+        # Download & Pasang Foto Profil User
         Write-Host "Mengunduh dan menerapkan Foto Profil Windows..."
-        $avatarPath = "$env:TEMP\cyber_avatar.jpg"
-        $wcAvatar = New-Object System.Net.WebClient
-        $wcAvatar.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        $wcAvatar.DownloadFile("https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg", $avatarPath)
+        $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmN4r8QQGWBuwdrDIE14cm92glQ6NGb20JY9-3fQ-fqBA4tMU5jCnqT-IGypusofrW6mHYJ4_SfTl0mehMAwKf1hI_rbDz_XUxRLfhQG0wZ_Zutv14soi931Rx1tR6bRafIaCp0oGpTc2dYShTbHJWHKbKrosZRMUwHG5i0wl25-f3B4wNZPT1nkdRdO0/s1600/1000184069.jpg"
+        $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
         
-        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
-        if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
-        
-        Copy-Item $avatarPath "$accountPicDir\$inputUser.jpg" -Force
-        Copy-Item $avatarPath "$accountPicDir\default.jpg" -Force
-        Write-Host "Status: Foto profil berhasil diterapkan."
+        try {
+            $wcAvatar = New-Object System.Net.WebClient
+            $wcAvatar.Headers.Add("User-Agent", "Mozilla/5.0")
+            $wcAvatar.DownloadFile($avatarUrl, "C:\avatar.jpg")
+            
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
+            
+            Copy-Item "C:\avatar.jpg" "$avatarPath\$inputUser.jpg" -Force
+            Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
+            
+            $userSid = (New-Object System.Security.Principal.NTAccount($inputUser)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+            $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
+            if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
+            New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
+            
+            Write-Host "Foto profil berhasil dipasang."
+        } catch {
+            Write-Host "Peringatan: Gagal mengunduh foto profil, melewati bagian ini..."
+        }
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh

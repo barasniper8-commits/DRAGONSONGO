@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       pass_code:
-        description: 'Masukkan Pass Kode (salah satu dari daftar web)'
+        description: 'Masukkan Pass Kode (cocokkan dengan web)'
         required: true
         type: string
       input_user:
-        description: 'Masukkan Username RDP'
+        description: 'Masukkan User RDP (cocokkan dengan web)'
         required: true
         type: string
       input_password:
-        description: 'Masukkan Password RDP'
+        description: 'Masukkan Password RDP (cocokkan dengan web)'
         required: true
         type: string
       tailscale_key:
@@ -29,32 +29,56 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Mengambil & Memvalidasi Data dari Link Web (Wajib Berhasil)
+    - name: Membaca & Memvalidasi Ketat Passcode, User, dan Password dari Web
       id: fetch-cred
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
         Write-Host "::add-mask::$targetUrl"
         
-        Write-Host "Mengambil data validasi dari halaman web privat..."
+        Write-Host "Mengambil data dari halaman web privat..."
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
-            # Parsing Multi Passcode dari web
+            # 1. Baca Passcode dari web (mendukung banyak passcode dipisah koma)
             if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
                 $rawPassCodes = $Matches[1]
-                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
+                $global:webPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                throw "Format paskode tidak ditemukan di HTML!"
+                $global:webPassCodes = $null
             }
 
-            $passCodesString = $global:validPassCodes -join ","
+            # 2. Baca User dari web
+            if ($webContent -match "User\s*:\s*([^\r\n<]+)") { 
+                $global:webUser = $Matches[1].Trim()
+            } else {
+                $global:webUser = $null
+            }
+
+            # 3. Baca Password dari web
+            if ($webContent -match "Password\s*:\s*([^\r\n<]+)") { 
+                $global:webPass = $Matches[1].Trim()
+            } else {
+                $global:webPass = $null
+            }
+
+            # Validasi Ketat: Jika salah satu saja (atau semuanya) tidak terbaca, gagalkan workflow!
+            if (-not $global:webPassCodes -or -not $global:webUser -or -not $global:webPass) {
+                Write-Error "GAGAL TOTAL: Salah satu atau seluruh data (Passcode / User / Password) TIDAK TERBACA di halaman web! Workflow dihentikan."
+                exit 1
+            }
+
+            # Simpan data ke environment
+            $passCodesString = $global:webPassCodes -join ","
             Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
-            Write-Host "Validasi dari web BERHASIL."
+            Write-Output "web_user=$($global:webUser)" >> $env:GITHUB_OUTPUT
+            Write-Output "web_pass=$($global:webPass)" >> $env:GITHUB_OUTPUT
+            
+            Write-Host "Semua data (Passcode, User, Password) berhasil terbaca dari web dengan sempurna."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau format HTML tidak valid! Workflow dihentikan sesuai instruksi."
+            Write-Error "GAGAL TOTAL: Koneksi ke link web gagal atau struktur halaman tidak valid! Workflow dihentikan."
             exit 1
         }
 
@@ -65,14 +89,31 @@ jobs:
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: Membuat Akun Pengguna RDP dari Input Workflow
+    - name: Verifikasi Kesesuaian User & Password Input dengan Web
       shell: pwsh
       run: |
-        $username = "${{ github.event.inputs.input_user }}".Trim()
-        $password = "${{ github.event.inputs.input_password }}".Trim()
+        $inputUser = "${{ github.event.inputs.input_user }}".Trim()
+        $inputPass = "${{ github.event.inputs.input_password }}".Trim()
         
-        # Menyembunyikan password di log konsol
-        Write-Host "::add-mask::$password"
+        $webUser = "${{ steps.fetch-cred.outputs.web_user }}".Trim()
+        $webPass = "${{ steps.fetch-cred.outputs.web_pass }}".Trim()
+        
+        # Sembunyikan password di log
+        Write-Host "::add-mask::$inputPass"
+        Write-Host "::add-mask::$webPass"
+        
+        if ($inputUser -ne $webUser -or $inputPass -ne $webPass) {
+            Write-Error "GAGAL: User atau Password yang Anda ketik saat Run Workflow tidak cocok dengan data yang terdaftar di halaman web!"
+            exit 1
+        }
+        
+        Write-Host "Verifikasi User dan Password BERHASIL!"
+
+    - name: Membuat Akun Pengguna RDP
+      shell: pwsh
+      run: |
+        $username = "${{ steps.fetch-cred.outputs.web_user }}"
+        $password = "${{ steps.fetch-cred.outputs.web_pass }}"
         
         Write-Host "Membuat akun RDP dengan username: $username"
         net user $username $password /add
@@ -103,7 +144,7 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Pass Kode Web vs Input (Disembunyikan di Log)
+    - name: Verifikasi Pass Code (Disembunyikan di Log)
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()

@@ -15,20 +15,24 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 2
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: MENGAMBIL . . .
+    - name: Mengambil & Memvalidasi Kredensial dari Link Web
       id: fetch-cred
       shell: pwsh
       run: |
-        Write-Host "Mengambil data kredensial dari halaman web..."
+        # Menyembunyikan link web agar tidak bocor/tercetak di log konsol GitHub
+        $targetUrl = "https://arianto12.lynk.id/p/ganjay"
+        Write-Host "::add-mask::$targetUrl"
+        
+        Write-Host "Mengambil data kredensial dari halaman web privat..."
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri "https://arianto12.lynk.id/p/ganjay" -Headers $headers -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
             if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
@@ -55,14 +59,14 @@ jobs:
             Write-Output "web_paskodes=CyberCyber2026,Admin2026,SuperPass" >> $env:GITHUB_OUTPUT
         }
 
-    - name: KONFIGURASI TAMPILAN & WALLPAPER TEMA CYBERPUNK
+    - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
       shell: pwsh
       run: |
         Write-Host "Mengaktifkan mode estetika Cyberpunk..."
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: MENGATUR AKUN PENGGUNA RDP
+    - name: Mengatur Akun Pengguna RDP
       shell: pwsh
       run: |
         $username = "${{ steps.fetch-cred.outputs.user }}"
@@ -74,7 +78,7 @@ jobs:
         
         Write-Host "Akun RDP siap digunakan."
 
-    - name: INSTALASI & KONEKSI TAILSCALE VPN
+    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |
         Write-Host "Mengunduh Tailscale MSI Installer untuk Windows..."
@@ -89,7 +93,7 @@ jobs:
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         Write-Host "Tailscale berhasil terhubung!"
 
-    - name: MENGAKTIFKAN FITUR REMOTE DESKTOP (RDP)
+    - name: Mengaktifkan Fitur Remote Desktop (RDP)
       shell: pwsh
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
@@ -97,7 +101,7 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: VERIFIKASI MULTI PASS KODE
+    - name: Verifikasi Multi Pass Kode (Disembunyikan di Log)
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
@@ -118,7 +122,7 @@ jobs:
             exit 1
         }
 
-    - name: MENJAGA WORKFLOW TETAP AKTIF
+    - name: Menjaga Workflow Tetap Aktif
       shell: pwsh
       run: |
         Write-Host "VPS RDP Cyberpunk berhasil diaktifkan dan terhubung ke jaringan Tailscale!"

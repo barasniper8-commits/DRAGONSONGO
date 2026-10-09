@@ -1,111 +1,265 @@
 
-      - name: "VALIDATE WEB CREDENTIALS"
-        id: fetch-cred
+name: "RDP MILIK ARIANTO | CYBERPUNK"
+
+on:
+  workflow_dispatch:
+    inputs:
+      pass_code:
+        description: "Kolom 1 - Passcode dari HTML"
+        required: true
+        type: string
+      input_user:
+        description: "Kolom 2 - Username RDP dari HTML"
+        required: true
+        type: string
+      input_password:
+        description: "Kolom 3 - Password RDP dari HTML"
+        required: true
+        type: string
+      tailscale_key:
+        description: "Kolom 4 - Tailscale Auth Key"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  setup-rdp:
+    name: "Windows RDP + Tailscale"
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: "01 - INITIALIZE CYBERPUNK TERMINAL"
+        shell: pwsh
+        run: |
+          $Host.UI.RawUI.ErrorForegroundColor = "Red" 2>$null
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "       RDP MILIK ARIANTO"
+          Write-Host "       WINDOWS + TAILSCALE"
+          Write-Host "============================================"
+          Write-Host "[OK] Workflow started"
+          Write-Host "[INFO] Initializing Windows environment"
+
+      - name: "02 - READ CREDENTIAL HTML"
+        id: credentials
         shell: pwsh
         env:
-          PASS_CODE_INPUT: ${{ inputs.pass_code }}
-          USER_INPUT: ${{ inputs.input_user }}
-          PASSWORD_INPUT: ${{ inputs.input_password }}
+          PASS_CODE: ${{ inputs.pass_code }}
+          INPUT_USER: ${{ inputs.input_user }}
+          INPUT_PASSWORD: ${{ inputs.input_password }}
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "[01/05] CONNECTING TO CREDENTIAL REGISTRY" -ForegroundColor Cyan
+          $htmlUrl = "https://arianto12.lynk.id/p/ganjay"
 
-          $targetUrl = "https://arianto12.lynk.id/p/ganjay"
+          Write-Host "[01/05] CONNECTING TO CREDENTIAL REGISTRY"
 
           try {
             $response = Invoke-WebRequest `
-              -Uri $targetUrl `
-              -Headers @{ "User-Agent" = "Mozilla/5.0" } `
-              -UseBasicParsing `
+              -Uri $htmlUrl `
+              -Method Get `
               -TimeoutSec 30 `
-              -MaximumRedirection 5
+              -UseBasicParsing
 
             $html = [System.Net.WebUtility]::HtmlDecode(
               [string]$response.Content
             )
-
-            Write-Host "[INFO] HTTP request completed" -ForegroundColor Green
-            Write-Host "[INFO] Response size: $($html.Length) characters" -ForegroundColor Cyan
-
-            # Extract text values without printing the credentials.
-            $passMatch = [regex]::Match(
-              $html, '(?is)\bpasscode\s*:\s*([^<\r\n]+)'
-            )
-            $userMatch = [regex]::Match(
-              $html, '(?is)\buser\s*:\s*([^<\r\n]+)'
-            )
-            $passwordMatch = [regex]::Match(
-              $html, '(?is)\bpassword\s*:\s*([^<\r\n]+)'
-            )
-
-            Write-Host "[CHECK] Passcode label found: $($passMatch.Success)"
-            Write-Host "[CHECK] User label found: $($userMatch.Success)"
-            Write-Host "[CHECK] Password label found: $($passwordMatch.Success)"
-
-            if (-not $passMatch.Success -or
-                -not $userMatch.Success -or
-                -not $passwordMatch.Success) {
-              throw "Expected labels are absent from the fetched HTML. Check whether the page contains the data in its initial HTML response."
-            }
-
-            $passCodes = @(
-              $passMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-            )
-
-            $users = @(
-              $userMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-            )
-
-            $passwords = @(
-              $passwordMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-            )
-
-            foreach ($secret in @($passCodes) + @($users) + @($passwords)) {
-              if ($secret) {
-                Write-Output "::add-mask::$secret"
-              }
-            }
-
-            foreach ($secret in @(
-              $env:PASS_CODE_INPUT,
-              $env:USER_INPUT,
-              $env:PASSWORD_INPUT
-            )) {
-              if ($secret) {
-                Write-Output "::add-mask::$secret"
-              }
-            }
-
-            $inputCode = $env:PASS_CODE_INPUT.Trim()
-            $inputUser = $env:USER_INPUT.Trim()
-            $inputPassword = $env:PASSWORD_INPUT.Trim()
-
-            if ($passCodes -cnotcontains $inputCode) {
-              throw "Passcode does not match the fetched registry."
-            }
-
-            if ($users -cnotcontains $inputUser) {
-              throw "Username does not match the fetched registry."
-            }
-
-            if ($passwords -cnotcontains $inputPassword) {
-              throw "Password does not match the fetched registry."
-            }
-
-            "verified_user=$inputUser" >> $env:GITHUB_OUTPUT
-            "verified_password=$inputPassword" >> $env:GITHUB_OUTPUT
-
-            Write-Host "[OK] REGISTRY PARSED" -ForegroundColor Green
-            Write-Host "[OK] ALL CREDENTIAL CHECKS PASSED" -ForegroundColor Green
           }
           catch {
-            Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
-            throw "Credential validation failed. Review the diagnostic messages above."
+            throw "Cannot download credential HTML. Check the URL and page accessibility."
           }
+
+          $passMatch = [regex]::Match(
+            $html, '(?is)\bpasscode\s*:\s*([^<\r\n]+)'
+          )
+          $userMatch = [regex]::Match(
+            $html, '(?is)\buser\s*:\s*([^<\r\n]+)'
+          )
+          $passwordMatch = [regex]::Match(
+            $html, '(?is)\bpassword\s*:\s*([^<\r\n]+)'
+          )
+
+          if (
+            !$passMatch.Success -or
+            !$userMatch.Success -or
+            !$passwordMatch.Success
+          ) {
+            throw "Credential labels not found. HTML must contain passcode:, user:, and password:."
+          }
+
+          $validPasscodes = @(
+            $passMatch.Groups[1].Value -split ',' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ }
+          )
+
+          $validUsers = @(
+            $userMatch.Groups[1].Value -split ',' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ }
+          )
+
+          $validPasswords = @(
+            $passwordMatch.Groups[1].Value -split ',' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ }
+          )
+
+          if ($env:PASS_CODE -notin $validPasscodes) {
+            throw "Passcode validation failed."
+          }
+
+          if ($env:INPUT_USER -notin $validUsers) {
+            throw "Username validation failed."
+          }
+
+          if ($env:INPUT_PASSWORD -notin $validPasswords) {
+            throw "Password validation failed."
+          }
+
+          if (
+            $env:INPUT_USER -notmatch '^[a-zA-Z0-9_.-]{1,20}$'
+          ) {
+            throw "Invalid Windows username format."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:INPUT_PASSWORD)) {
+            throw "Password cannot be empty."
+          }
+
+          Write-Host "[OK] HTML downloaded"
+          Write-Host "[OK] Passcode validated"
+          Write-Host "[OK] Username validated"
+          Write-Host "[OK] Password validated"
+          Write-Host "[02/05] CREDENTIAL VALIDATION COMPLETE"
+
+      - name: "03 - CONFIGURE WINDOWS RDP"
+        shell: pwsh
+        env:
+          INPUT_USER: ${{ inputs.input_user }}
+          INPUT_PASSWORD: ${{ inputs.input_password }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "[03/05] CONFIGURING WINDOWS REMOTE DESKTOP"
+
+          $securePassword = ConvertTo-SecureString `
+            $env:INPUT_PASSWORD -AsPlainText -Force
+
+          $existingUser = Get-LocalUser `
+            -Name $env:INPUT_USER `
+            -ErrorAction SilentlyContinue
+
+          if ($null -eq $existingUser) {
+            New-LocalUser `
+              -Name $env:INPUT_USER `
+              -Password $securePassword `
+              -PasswordNeverExpires `
+              -Description "Temporary RDP user"
+            Write-Host "[OK] RDP user created"
+          }
+          else {
+            Set-LocalUser `
+              -Name $env:INPUT_USER `
+              -Password $securePassword
+            Write-Host "[OK] RDP user password updated"
+          }
+
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member $env:INPUT_USER `
+            -ErrorAction SilentlyContinue
+
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0
+
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service -Name TermService
+
+          Write-Host "[OK] Remote Desktop configured"
+          Write-Host "[OK] RDP firewall rules enabled"
+
+      - name: "04 - INSTALL AND CONNECT TAILSCALE"
+        shell: pwsh
+        env:
+          TAILSCALE_KEY: ${{ inputs.tailscale_key }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "[04/05] INSTALLING TAILSCALE"
+
+          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_KEY)) {
+            throw "Tailscale Auth Key is required."
+          }
+
+          $installer = Join-Path $env:TEMP "tailscale-setup.msi"
+          $downloadUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+
+          Invoke-WebRequest `
+            -Uri $downloadUrl `
+            -OutFile $installer `
+            -TimeoutSec 120
+
+          $process = Start-Process `
+            -FilePath "msiexec.exe" `
+            -ArgumentList @("/i", "`"$installer`"", "/qn", "/norestart") `
+            -Wait `
+            -PassThru
+
+          if ($process.ExitCode -notin @(0, 3010)) {
+            throw "Tailscale installation failed with exit code $($process.ExitCode)."
+          }
+
+          $tailscaleExe = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
+
+          if (!(Test-Path $tailscaleExe)) {
+            throw "Tailscale executable not found after installation."
+          }
+
+          $service = Get-Service -Name Tailscale -ErrorAction SilentlyContinue
+
+          if ($null -ne $service -and $service.Status -ne "Running") {
+            Start-Service -Name Tailscale
+          }
+
+          & $tailscaleExe up `
+            --auth-key="$env:TAILSCALE_KEY" `
+            --hostname="arianto-rdp" `
+            --accept-routes
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Tailscale connection failed. Check the Auth Key and tailnet permissions."
+          }
+
+          $ipOutput = & $tailscaleExe ip -4
+          $tailscaleIp = ($ipOutput | Select-Object -First 1).Trim()
+
+          if ([string]::IsNullOrWhiteSpace($tailscaleIp)) {
+            throw "Tailscale did not return an IPv4 address."
+          }
+
+          Write-Host "[OK] Tailscale connected"
+          Write-Host "RDP ADDRESS: $tailscaleIp"
+          Write-Host "RDP PORT: 3389"
+
+      - name: "05 - SESSION STATUS"
+        if: success()
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "        RDP INITIALIZATION COMPLETE"
+          Write-Host "============================================"
+          Write-Host "[OK] Windows RDP configured"
+          Write-Host "[OK] Tailscale connected"
+          Write-Host "[INFO] Check the previous step for the RDP IP"
+          Write-Host "[INFO] The hosted runner is temporary"
+          Write-Host ""
+          Write-Host "This workflow does not create a permanent VPS."

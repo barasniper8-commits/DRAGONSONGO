@@ -31,26 +31,20 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      # ==================================================
+      # CYBERPUNK LOADING TERMINAL
+      # ==================================================
       - name: "INITIALIZE CYBERPUNK TERMINAL"
         shell: pwsh
         run: |
-          $Host.UI.RawUI.WindowTitle = "ARIANTO RDP CYBERPUNK PRO"
-          $Host.UI.RawUI.ForegroundColor = "Cyan"
-          Clear-Host
+          $ErrorActionPreference = "Stop"
 
           Write-Host ""
           Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "    █████╗ ██████╗ ██╗ █████╗ ███╗   ██╗████████╗ ██████╗" -ForegroundColor Magenta
-          Write-Host "   ██╔══██╗██╔══██╗██║██╔══██╗████╗  ██║╚══██╔══╝██╔═══██╗" -ForegroundColor Magenta
-          Write-Host "   ███████║██████╔╝██║███████║██╔██╗ ██║   ██║   ██║   ██║" -ForegroundColor Cyan
-          Write-Host "   ██╔══██║██╔══██╗██║██╔══██║██║╚██╗██║   ██║   ██║   ██║" -ForegroundColor Cyan
-          Write-Host "   ██║  ██║██║  ██║██║██║  ██║██║ ╚████║   ██║   ╚██████╔╝" -ForegroundColor Magenta
+          Write-Host "          ARIANTO RDP CYBERPUNK PRO" -ForegroundColor Magenta
+          Write-Host "          WINDOWS CLOUD INITIALIZATION" -ForegroundColor Cyan
+          Write-Host "          CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
           Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "       RDP MILIK ARIANTO | WINDOWS CLOUD SYSTEM" -ForegroundColor Green
-          Write-Host "       CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
-          Write-Host "       CYBERPUNK CORE INITIALIZING..." -ForegroundColor Cyan
-          Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host ""
 
           $tasks = @(
             "Initializing cyberpunk terminal",
@@ -61,23 +55,34 @@ jobs:
           )
 
           foreach ($task in $tasks) {
+            Write-Host ""
             Write-Host "[SYSTEM] $task" -ForegroundColor Cyan
+
             foreach ($i in 1..20) {
               $bar = ("#" * $i).PadRight(20, "-")
-              Write-Host "`r[$bar] $($i * 5)%" -NoNewline -ForegroundColor Magenta
+              $percent = $i * 5
+
+              Write-Host "[$bar] $percent%" -ForegroundColor Magenta
               Start-Sleep -Milliseconds 35
             }
-            Write-Host ""
+
             Write-Host "[OK] $task" -ForegroundColor Green
           }
 
           Write-Host ""
           Write-Host "[READY] CYBERPUNK TERMINAL INITIALIZED" -ForegroundColor Green
+          Write-Host "========================================================" -ForegroundColor Cyan
 
+      # ==================================================
+      # CHECKOUT
+      # ==================================================
       - name: "CHECKOUT REPOSITORY"
         uses: actions/checkout@v4
 
-      - name: "FETCH WEB CREDENTIAL REGISTRY"
+      # ==================================================
+      # VALIDATE WEB CREDENTIALS
+      # ==================================================
+      - name: "VALIDATE WEB CREDENTIALS"
         id: fetch-cred
         shell: pwsh
         env:
@@ -97,7 +102,7 @@ jobs:
               -Uri $targetUrl `
               -Headers @{ "User-Agent" = "Mozilla/5.0" } `
               -UseBasicParsing `
-              -TimeoutSec 20
+              -TimeoutSec 30
 
             $content = $response.Content
 
@@ -135,57 +140,56 @@ jobs:
               Where-Object { $_ }
             )
 
-            if ($passCodes.Count -eq 0 -or
-                $users.Count -eq 0 -or
-                $passwords.Count -eq 0) {
-              throw "Credential registry is empty."
-            }
-
-            $user = $env:USER_INPUT.Trim()
-            $password = $env:PASSWORD_INPUT.Trim()
-            $passCode = $env:PASS_CODE_INPUT.Trim()
-
             foreach ($secret in @($passCodes) + @($users) + @($passwords)) {
               if ($secret) {
                 Write-Output "::add-mask::$secret"
               }
             }
 
-            if ($password) {
-              Write-Output "::add-mask::$password"
+            if ($env:PASS_CODE_INPUT) {
+              Write-Output "::add-mask::$($env:PASS_CODE_INPUT)"
             }
 
-            if ($passCode) {
-              Write-Output "::add-mask::$passCode"
+            if ($env:PASSWORD_INPUT) {
+              Write-Output "::add-mask::$($env:PASSWORD_INPUT)"
             }
 
-            if ($passCodes -cnotcontains $passCode) {
+            $inputCode = $env:PASS_CODE_INPUT.Trim()
+            $inputUser = $env:USER_INPUT.Trim()
+            $inputPassword = $env:PASSWORD_INPUT.Trim()
+
+            if ($passCodes -cnotcontains $inputCode) {
               throw "Passcode verification failed."
             }
 
-            if ($users -cnotcontains $user) {
+            if ($users -cnotcontains $inputUser) {
               throw "Username verification failed."
             }
 
-            if ($passwords -cnotcontains $password) {
+            if ($passwords -cnotcontains $inputPassword) {
               throw "Password verification failed."
             }
 
-            "verified_user=$user" >> $env:GITHUB_OUTPUT
-            "verified_password=$password" >> $env:GITHUB_OUTPUT
+            "verified_user=$inputUser" >> $env:GITHUB_OUTPUT
+            "verified_password=$inputPassword" >> $env:GITHUB_OUTPUT
 
-            Write-Host "[OK] REGISTRY VALIDATED" -ForegroundColor Green
-            Write-Host "[OK] PASSCODE ACCEPTED" -ForegroundColor Green
-            Write-Host "[OK] USER CREDENTIALS ACCEPTED" -ForegroundColor Green
+            Write-Host "[OK] PASSCODE VERIFIED" -ForegroundColor Green
+            Write-Host "[OK] USERNAME VERIFIED" -ForegroundColor Green
+            Write-Host "[OK] PASSWORD VERIFIED" -ForegroundColor Green
           }
           catch {
-            Write-Host "[ERROR] REGISTRY VALIDATION FAILED" -ForegroundColor Red
-            throw "Credential validation failed. Check the webpage format and supplied credentials."
+            Write-Host "[ERROR] CREDENTIAL VALIDATION FAILED" -ForegroundColor Red
+            throw "Validation failed. Check the webpage format and supplied credentials."
           }
 
+      # ==================================================
+      # SYSTEM LOADING DISPLAY
+      # ==================================================
       - name: "WINDOWS CYBERPUNK LOADING DISPLAY"
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           Write-Host ""
           Write-Host "[02/06] WINDOWS CLOUD INITIALIZATION" -ForegroundColor Cyan
 
@@ -199,18 +203,24 @@ jobs:
           foreach ($task in $tasks) {
             Write-Host ""
             Write-Host ">> $task" -ForegroundColor Magenta
-            for ($i = 0; $i -le 100; $i += 10) {
-              $bar = ("=" * ($i / 5)).PadRight(20, ".")
-              Write-Host "`r[$bar] $i%" -NoNewline -ForegroundColor Cyan
+
+            foreach ($i in 1..10) {
+              $bar = ("=" * ($i * 2)).PadRight(20, ".")
+              $percent = $i * 10
+
+              Write-Host "[$bar] $percent%" -ForegroundColor Cyan
               Start-Sleep -Milliseconds 100
             }
-            Write-Host ""
+
             Write-Host "[OK] $task" -ForegroundColor Green
           }
 
-          Write-Host "[OK] DISPLAY SEQUENCE COMPLETE" -ForegroundColor Green
+          Write-Host "[OK] LOADING DISPLAY COMPLETED" -ForegroundColor Green
 
-      - name: "CREATE RDP USER"
+      # ==================================================
+      # RDP ACCOUNT
+      # ==================================================
+      - name: "CONFIGURE RDP ACCOUNT"
         shell: pwsh
         env:
           RDP_USER: ${{ steps.fetch-cred.outputs.verified_user }}
@@ -229,9 +239,11 @@ jobs:
             throw "Missing validated account information."
           }
 
-          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $securePassword = ConvertTo-SecureString `
+            $password -AsPlainText -Force
 
-          $account = Get-LocalUser -Name $user -ErrorAction SilentlyContinue
+          $account = Get-LocalUser `
+            -Name $user -ErrorAction SilentlyContinue
 
           if ($account) {
             Set-LocalUser -Name $user -Password $securePassword
@@ -251,6 +263,9 @@ jobs:
 
           Write-Host "[OK] RDP ACCOUNT CONFIGURED" -ForegroundColor Green
 
+      # ==================================================
+      # TAILSCALE
+      # ==================================================
       - name: "INSTALL AND CONNECT TAILSCALE"
         shell: pwsh
         env:
@@ -286,7 +301,8 @@ jobs:
             throw "Tailscale installation failed."
           }
 
-          $tailscalePath = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
+          $tailscalePath = Join-Path `
+            $env:ProgramFiles "Tailscale\tailscale.exe"
 
           if (-not (Test-Path $tailscalePath)) {
             throw "Tailscale executable not found."
@@ -302,15 +318,20 @@ jobs:
 
           Write-Host "[OK] TAILSCALE CONNECTED" -ForegroundColor Green
 
+          & $tailscalePath status
+
           Remove-Item $installer -Force -ErrorAction SilentlyContinue
 
+      # ==================================================
+      # ENABLE RDP
+      # ==================================================
       - name: "ENABLE REMOTE DESKTOP"
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           Write-Host ""
-          Write-Host "[05/06] ENABLING REMOTE DESKTOP SERVICES" -ForegroundColor Cyan
+          Write-Host "[05/06] ENABLING REMOTE DESKTOP" -ForegroundColor Cyan
 
           Set-ItemProperty `
             -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
@@ -329,19 +350,30 @@ jobs:
 
           Write-Host "[OK] REMOTE DESKTOP CONFIGURED" -ForegroundColor Green
 
-      - name: "FINAL SYSTEM STATUS"
+      # ==================================================
+      # FINAL STATUS
+      # ==================================================
+      - name: "FINAL CYBERPUNK STATUS"
         shell: pwsh
         run: |
           Write-Host ""
           Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "            RDP MILIK ARIANTO" -ForegroundColor Magenta
-          Write-Host "      CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
+          Write-Host "             RDP MILIK ARIANTO" -ForegroundColor Magenta
+          Write-Host "       CANDIPURO - LUMAJANG - JAWA TIMUR" -ForegroundColor Yellow
           Write-Host "========================================================" -ForegroundColor Cyan
-          Write-Host "[OK] WINDOWS RUNTIME READY" -ForegroundColor Green
-          Write-Host "[OK] CREDENTIAL VALIDATION COMPLETED" -ForegroundColor Green
-          Write-Host "[OK] TAILSCALE CONNECTION COMPLETED" -ForegroundColor Green
-          Write-Host "[OK] RDP CONFIGURATION COMPLETED" -ForegroundColor Green
+
+          $statuses = @(
+            "WINDOWS RUNTIME INITIALIZED",
+            "CREDENTIAL VALIDATION COMPLETED",
+            "TAILSCALE CONNECTION COMPLETED",
+            "RDP CONFIGURATION COMPLETED"
+          )
+
+          foreach ($status in $statuses) {
+            Write-Host "[OK] $status" -ForegroundColor Green
+          }
+
           Write-Host ""
           Write-Host "[INFO] GitHub-hosted runners are temporary." -ForegroundColor Yellow
-          Write-Host "[INFO] This workflow cannot keep a hosted runner alive indefinitely." -ForegroundColor Yellow
+          Write-Host "[INFO] Workflow lifetime is limited by GitHub runner limits." -ForegroundColor Yellow
           Write-Host "========================================================" -ForegroundColor Cyan

@@ -15,26 +15,26 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 360
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Mengambil & Memvalidasi Kredensial dari Link Web
+    - name: Mengambil & Memvalidasi Kredensial Multi-User dari Link Web
       id: fetch-cred
       shell: pwsh
       run: |
-        # Tunggu Sayang . . .
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
         Write-Host "::add-mask::$targetUrl"
         
-        Write-Host "MENGAMBIL DATA . . ."
+        Write-Host "Mengambil data kredensial dari halaman web privat..."
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
             $webContent = $response.Content
             
+            # Parsing Multi Passcode
             if ($webContent -match "paskode\s*:\s*([^\r\n<]+)") { 
                 $rawPassCodes = $Matches[1]
                 $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
@@ -42,41 +42,56 @@ jobs:
                 $global:validPassCodes = @("CyberCyber2026")
             }
 
-            if ($webContent -match "User\s*:\s*([^\s<]+)") { $rdpUser = $Matches[1] } else { $rdpUser = "cyberpunk_admin" }
-            if ($webContent -match "Password\s*:\s*([^\s<]+)") { $rdpPass = $Matches[1] } else { $rdpPass = "CyberP@ss2026!" }
+            # Parsing Multi Users & Passwords (Format: user1:pass1, user2:pass2)
+            if ($webContent -match "Users\s*:\s*([^\r\n<]+)") {
+                $rawUsers = $Matches[1]
+                $global:userList = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
+            } else {
+                # Fallback default jika format lama
+                $global:userList = @("cyberpunk_admin:CyberP@ss2026!")
+            }
 
-            Write-Output "user=$rdpUser" >> $env:GITHUB_OUTPUT
-            Write-Output "pass=$rdpPass" >> $env:GITHUB_OUTPUT
-            
             $passCodesString = $global:validPassCodes -join ","
-            Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
+            $usersString = $global:userList -join ","
             
-            Write-Host "Kredensial berhasil dimuat dengan aman."
+            Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
+            Write-Output "web_users=$usersString" >> $env:GITHUB_OUTPUT
+            
+            Write-Host "Data multi-kredensial berhasil dimuat dengan aman."
         } catch {
             Write-Host "Warning: Gagal terhubung, menggunakan kredensial default sistem..."
-            Write-Output "user=cyberpunk_admin" >> $env:GITHUB_OUTPUT
-            Write-Output "pass=CyberP@ss2026!" >> $env:GITHUB_OUTPUT
-            Write-Output "web_paskodes=CyberCyber2026,Admin2026,SuperPass" >> $env:GITHUB_OUTPUT
+            Write-Output "web_paskodes=CyberCyber2026,Admin2026" >> $env:GITHUB_OUTPUT
+            Write-Output "web_users=cyberpunk_admin:CyberP@ss2026!,user2:PassBaru123" >> $env:GITHUB_OUTPUT
         }
 
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
       shell: pwsh
       run: |
-        Write-Host "MENGAKTIFKAN MODE "
+        Write-Host "Mengaktifkan mode estetika Cyberpunk..."
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-    - name: MENGATUR AKUN PENGGUNARDP
+    - name: Membuat Banyak Akun Pengguna RDP Sekaligus
       shell: pwsh
       run: |
-        $username = "${{ steps.fetch-cred.outputs.user }}"
-        $password = "${{ steps.fetch-cred.outputs.pass }}"
+        $usersString = "${{ steps.fetch-cred.outputs.web_users }}"
+        $accounts = $usersString -split ','
         
-        Write-Host "Membuat akun pengguna RDP: $username"
-        net user $username $password /add
-        net localgroup administrators $username /add
-        
-        Write-Host "Akun RDP siap digunakan."
+        foreach ($acc in $accounts) {
+            $parts = $acc -split ':'
+            if ($parts.Length -eq 2) {
+                $u = $parts[0].Trim()
+                $p = $parts[1].Trim()
+                
+                Write-Host "Membuat akun RDP: $u"
+                # Menyembunyikan password akun di log konsol
+                Write-Host "::add-mask::$p"
+                
+                net user $u $p /add
+                net localgroup administrators $u /add
+            }
+        }
+        Write-Host "Semua akun RDP berhasil dibuat dan dijadikan Administrator."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
@@ -108,7 +123,6 @@ jobs:
         $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
         $validCodes = $webPassCodesString -split ','
         
-        # Menyembunyikan pass code agar otomatis di-masking (sensor) oleh GitHub Actions
         Write-Host "::add-mask::$inputPassCode"
         foreach ($code in $validCodes) {
             Write-Host "::add-mask::$code"

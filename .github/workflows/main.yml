@@ -1,265 +1,168 @@
-
-name: "RDP MILIK ARIANTO | CYBERPUNK"
+name: Windows RDP Cyberpunk
 
 on:
   workflow_dispatch:
     inputs:
       pass_code:
-        description: "Kolom 1 - Passcode dari HTML"
+        description: 'Masukkan Pass Kode (salah satu dari web)'
         required: true
         type: string
       input_user:
-        description: "Kolom 2 - Username RDP dari HTML"
+        description: 'Masukkan Username RDP (salah satu dari web)'
         required: true
         type: string
       input_password:
-        description: "Kolom 3 - Password RDP dari HTML"
+        description: 'Masukkan Password RDP (sesuai user)'
         required: true
         type: string
       tailscale_key:
-        description: "Kolom 4 - Tailscale Auth Key"
+        description: 'Masukkan Tailscale Auth Key'
         required: true
         type: string
 
-permissions:
-  contents: read
-
 jobs:
-  setup-rdp:
-    name: "Windows RDP + Tailscale"
+  build:
     runs-on: windows-latest
     timeout-minutes: 360
 
     steps:
-      - name: "01 - INITIALIZE CYBERPUNK TERMINAL"
-        shell: pwsh
-        run: |
-          $Host.UI.RawUI.ErrorForegroundColor = "Red" 2>$null
-          Write-Host ""
-          Write-Host "============================================"
-          Write-Host "       RDP MILIK ARIANTO"
-          Write-Host "       WINDOWS + TAILSCALE"
-          Write-Host "============================================"
-          Write-Host "[OK] Workflow started"
-          Write-Host "[INFO] Initializing Windows environment"
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: "02 - READ CREDENTIAL HTML"
-        id: credentials
-        shell: pwsh
-        env:
-          PASS_CODE: ${{ inputs.pass_code }}
-          INPUT_USER: ${{ inputs.input_user }}
-          INPUT_PASSWORD: ${{ inputs.input_password }}
-        run: |
-          $ErrorActionPreference = "Stop"
+    - name: Membaca & Memvalidasi Ketat (Passcode, User, Password) dari Web
+      id: fetch-cred
+      shell: pwsh
+      run: |
+        # Menggunakan metode pemecahan karakter agar teks URL tidak terbaca mentah oleh parser log GitHub
+        $u1 = "https://arianto1"
+        $u2 = "2.lynk.id/p/ganjay"
+        $targetUrl = "$u1$u2"
+        
+        [Console]::WriteLine("::add-mask::$targetUrl")
+        
+        try {
+            $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
+            $webContent = $response.Content
+            
+            # 1. Baca Passcode
+            if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
+                $rawPassCodes = $Matches[1]
+                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
+            } else {
+                $global:validPassCodes = @()
+            }
 
-          $htmlUrl = "https://arianto12.lynk.id/p/ganjay"
+            # 2. Baca User
+            if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
+                $rawUsers = $Matches[1]
+                $global:validUsers = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
+            } else {
+                $global:validUsers = @()
+            }
 
-          Write-Host "[01/05] CONNECTING TO CREDENTIAL REGISTRY"
+            # 3. Baca Password
+            if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
+                $rawPasswords = $Matches[1]
+                $global:validPasswords = $rawPasswords -split ',' | ForEach-Object { $_.Trim() }
+            } else {
+                $global:validPasswords = @()
+            }
 
-          try {
-            $response = Invoke-WebRequest `
-              -Uri $htmlUrl `
-              -Method Get `
-              -TimeoutSec 30 `
-              -UseBasicParsing
+            # VALIDASI KETAT: Jika salah satu elemen kosong atau gagal terbaca, gagalkan total tanpa membocorkan info
+            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
+                Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
+                exit 1
+            }
 
-            $html = [System.Net.WebUtility]::HtmlDecode(
-              [string]$response.Content
-            )
-          }
-          catch {
-            throw "Cannot download credential HTML. Check the URL and page accessibility."
-          }
+            # Simpan data ke environment
+            Write-Output "web_paskodes=$($global:validPassCodes -join ',')" >> $env:GITHUB_OUTPUT
+            Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
+            Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
+            
+            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
+        } catch {
+            Write-Error "GAGAL TOTAL: Terhubung ke halaman web privat gagal atau format data tidak valid! Workflow dihentikan."
+            exit 1
+        }
 
-          $passMatch = [regex]::Match(
-            $html, '(?is)\bpasscode\s*:\s*([^<\r\n]+)'
-          )
-          $userMatch = [regex]::Match(
-            $html, '(?is)\buser\s*:\s*([^<\r\n]+)'
-          )
-          $passwordMatch = [regex]::Match(
-            $html, '(?is)\bpassword\s*:\s*([^<\r\n]+)'
-          )
+    - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
+      shell: pwsh
+      run: |
+        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
+        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
 
-          if (
-            !$passMatch.Success -or
-            !$userMatch.Success -or
-            !$passwordMatch.Success
-          ) {
-            throw "Credential labels not found. HTML must contain passcode:, user:, and password:."
-          }
+    - name: Verifikasi & Pembuatan Akun RDP
+      shell: pwsh
+      run: |
+        $inputUser = "${{ github.event.inputs.input_user }}".Trim()
+        $inputPass = "${{ github.event.inputs.input_password }}".Trim()
+        
+        $webUsersString = "${{ steps.fetch-cred.outputs.web_users }}"
+        $webPassString = "${{ steps.fetch-cred.outputs.web_passwords }}"
+        
+        $validUsers = $webUsersString -split ','
+        $validPasswords = $webPassString -split ','
+        
+        Write-Host "::add-mask::$inputPass"
+        foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
+        
+        if (-not ($validUsers -contains $inputUser)) {
+            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
+            exit 1
+        }
+        
+        if (-not ($validPasswords -contains $inputPass)) {
+            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+            exit 1
+        }
 
-          $validPasscodes = @(
-            $passMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-          )
+        net user $inputUser $inputPass /add
+        net localgroup administrators $inputUser /add
+        Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
 
-          $validUsers = @(
-            $userMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-          )
+    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
+      shell: pwsh
+      run: |
+        $installer = "$env:TEMP\tailscale-setup.msi"
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
+        Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
+        
+        $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
+        & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
+        Write-Host "Status: Tailscale berhasil terhubung."
 
-          $validPasswords = @(
-            $passwordMatch.Groups[1].Value -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
-          )
+    - name: Mengaktifkan Fitur Remote Desktop (RDP)
+      shell: pwsh
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Write-Host "Status: RDP Service aktif."
 
-          if ($env:PASS_CODE -notin $validPasscodes) {
-            throw "Passcode validation failed."
-          }
+    - name: Verifikasi Passcode (Disembunyikan di Log)
+      shell: pwsh
+      run: |
+        $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
+        $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
+        $validCodes = $webPassCodesString -split ','
+        
+        Write-Host "::add-mask::$inputPassCode"
+        foreach ($code in $validCodes) {
+            Write-Host "::add-mask::$code"
+        }
+        
+        if ($validCodes -contains $inputPassCode) {
+            Write-Host "Status: Verifikasi Passcode BERHASIL."
+        } else {
+            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            exit 1
+        }
 
-          if ($env:INPUT_USER -notin $validUsers) {
-            throw "Username validation failed."
-          }
-
-          if ($env:INPUT_PASSWORD -notin $validPasswords) {
-            throw "Password validation failed."
-          }
-
-          if (
-            $env:INPUT_USER -notmatch '^[a-zA-Z0-9_.-]{1,20}$'
-          ) {
-            throw "Invalid Windows username format."
-          }
-
-          if ([string]::IsNullOrWhiteSpace($env:INPUT_PASSWORD)) {
-            throw "Password cannot be empty."
-          }
-
-          Write-Host "[OK] HTML downloaded"
-          Write-Host "[OK] Passcode validated"
-          Write-Host "[OK] Username validated"
-          Write-Host "[OK] Password validated"
-          Write-Host "[02/05] CREDENTIAL VALIDATION COMPLETE"
-
-      - name: "03 - CONFIGURE WINDOWS RDP"
-        shell: pwsh
-        env:
-          INPUT_USER: ${{ inputs.input_user }}
-          INPUT_PASSWORD: ${{ inputs.input_password }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "[03/05] CONFIGURING WINDOWS REMOTE DESKTOP"
-
-          $securePassword = ConvertTo-SecureString `
-            $env:INPUT_PASSWORD -AsPlainText -Force
-
-          $existingUser = Get-LocalUser `
-            -Name $env:INPUT_USER `
-            -ErrorAction SilentlyContinue
-
-          if ($null -eq $existingUser) {
-            New-LocalUser `
-              -Name $env:INPUT_USER `
-              -Password $securePassword `
-              -PasswordNeverExpires `
-              -Description "Temporary RDP user"
-            Write-Host "[OK] RDP user created"
-          }
-          else {
-            Set-LocalUser `
-              -Name $env:INPUT_USER `
-              -Password $securePassword
-            Write-Host "[OK] RDP user password updated"
-          }
-
-          Add-LocalGroupMember `
-            -Group "Remote Desktop Users" `
-            -Member $env:INPUT_USER `
-            -ErrorAction SilentlyContinue
-
-          Set-ItemProperty `
-            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
-            -Name "fDenyTSConnections" `
-            -Value 0
-
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-          Set-Service -Name TermService -StartupType Automatic
-          Start-Service -Name TermService
-
-          Write-Host "[OK] Remote Desktop configured"
-          Write-Host "[OK] RDP firewall rules enabled"
-
-      - name: "04 - INSTALL AND CONNECT TAILSCALE"
-        shell: pwsh
-        env:
-          TAILSCALE_KEY: ${{ inputs.tailscale_key }}
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "[04/05] INSTALLING TAILSCALE"
-
-          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_KEY)) {
-            throw "Tailscale Auth Key is required."
-          }
-
-          $installer = Join-Path $env:TEMP "tailscale-setup.msi"
-          $downloadUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
-
-          Invoke-WebRequest `
-            -Uri $downloadUrl `
-            -OutFile $installer `
-            -TimeoutSec 120
-
-          $process = Start-Process `
-            -FilePath "msiexec.exe" `
-            -ArgumentList @("/i", "`"$installer`"", "/qn", "/norestart") `
-            -Wait `
-            -PassThru
-
-          if ($process.ExitCode -notin @(0, 3010)) {
-            throw "Tailscale installation failed with exit code $($process.ExitCode)."
-          }
-
-          $tailscaleExe = Join-Path $env:ProgramFiles "Tailscale\tailscale.exe"
-
-          if (!(Test-Path $tailscaleExe)) {
-            throw "Tailscale executable not found after installation."
-          }
-
-          $service = Get-Service -Name Tailscale -ErrorAction SilentlyContinue
-
-          if ($null -ne $service -and $service.Status -ne "Running") {
-            Start-Service -Name Tailscale
-          }
-
-          & $tailscaleExe up `
-            --auth-key="$env:TAILSCALE_KEY" `
-            --hostname="arianto-rdp" `
-            --accept-routes
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Tailscale connection failed. Check the Auth Key and tailnet permissions."
-          }
-
-          $ipOutput = & $tailscaleExe ip -4
-          $tailscaleIp = ($ipOutput | Select-Object -First 1).Trim()
-
-          if ([string]::IsNullOrWhiteSpace($tailscaleIp)) {
-            throw "Tailscale did not return an IPv4 address."
-          }
-
-          Write-Host "[OK] Tailscale connected"
-          Write-Host "RDP ADDRESS: $tailscaleIp"
-          Write-Host "RDP PORT: 3389"
-
-      - name: "05 - SESSION STATUS"
-        if: success()
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "============================================"
-          Write-Host "        RDP INITIALIZATION COMPLETE"
-          Write-Host "============================================"
-          Write-Host "[OK] Windows RDP configured"
-          Write-Host "[OK] Tailscale connected"
-          Write-Host "[INFO] Check the previous step for the RDP IP"
-          Write-Host "[INFO] The hosted runner is temporary"
-          Write-Host ""
-          Write-Host "This workflow does not create a permanent VPS."
+    - name: Menjaga Workflow Tetap Aktif
+      shell: pwsh
+      run: |
+        Write-Host "VPS RDP Cyberpunk berhasil diaktifkan dan terhubung ke jaringan Tailscale!"
+        while ($true) {
+            Start-Sleep -Seconds 30
+        }

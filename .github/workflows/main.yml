@@ -7,12 +7,12 @@ on:
         description: 'Masukkan Pass Kode (salah satu dari daftar web)'
         required: true
         type: string
-      custom_user:
-        description: 'Masukkan Username RDP baru'
+      input_user:
+        description: 'Masukkan Username RDP'
         required: true
         type: string
-      custom_pass:
-        description: 'Masukkan Password RDP baru'
+      input_password:
+        description: 'Masukkan Password RDP'
         required: true
         type: string
       tailscale_key:
@@ -29,14 +29,14 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Mengambil & Memvalidasi Multi Pass Kode dari Link Web
+    - name: Mengambil & Memvalidasi Data dari Link Web (Wajib Berhasil)
       id: fetch-cred
       shell: pwsh
       run: |
         $targetUrl = "https://arianto12.lynk.id/p/ganjay"
         Write-Host "::add-mask::$targetUrl"
         
-        Write-Host "Mengambil data pass kode dari halaman web privat..."
+        Write-Host "Mengambil data validasi dari halaman web privat..."
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
             $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
@@ -47,15 +47,15 @@ jobs:
                 $rawPassCodes = $Matches[1]
                 $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
             } else {
-                $global:validPassCodes = @("CyberCyber2026")
+                throw "Format paskode tidak ditemukan di HTML!"
             }
 
             $passCodesString = $global:validPassCodes -join ","
             Write-Output "web_paskodes=$passCodesString" >> $env:GITHUB_OUTPUT
-            Write-Host "Data pass kode berhasil dimuat dengan aman."
+            Write-Host "Validasi dari web BERHASIL."
         } catch {
-            Write-Host "Warning: Gagal terhubung, menggunakan pass kode default sistem..."
-            Write-Output "web_paskodes=CyberCyber2026,Admin2026" >> $env:GITHUB_OUTPUT
+            Write-Error "GAGAL TOTAL: Terhubung ke link web gagal atau format HTML tidak valid! Workflow dihentikan sesuai instruksi."
+            exit 1
         }
 
     - name: Konfigurasi Tampilan & Wallpaper Tema Cyberpunk
@@ -68,13 +68,13 @@ jobs:
     - name: Membuat Akun Pengguna RDP dari Input Workflow
       shell: pwsh
       run: |
-        $username = "${{ github.event.inputs.custom_user }}".Trim()
-        $password = "${{ github.event.inputs.custom_pass }}".Trim()
+        $username = "${{ github.event.inputs.input_user }}".Trim()
+        $password = "${{ github.event.inputs.input_password }}".Trim()
         
-        # Menyembunyikan password di log konsol GitHub Actions
+        # Menyembunyikan password di log konsol
         Write-Host "::add-mask::$password"
         
-        Write-Host "Membuat akun RDP dengan user: $username"
+        Write-Host "Membuat akun RDP dengan username: $username"
         net user $username $password /add
         net localgroup administrators $username /add
         
@@ -103,7 +103,7 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Write-Host "RDP Service aktif."
 
-    - name: Verifikasi Multi Pass Kode (Disembunyikan di Log)
+    - name: Verifikasi Pass Kode Web vs Input (Disembunyikan di Log)
       shell: pwsh
       run: |
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
@@ -115,9 +115,9 @@ jobs:
             Write-Host "::add-mask::$code"
         }
         
-        Write-Host "Memverifikasi Pass Kode yang dimasukkan..."
+        Write-Host "Memverifikasi Pass Kode..."
         if ($validCodes -contains $inputPassCode) {
-            Write-Host "Verifikasi Pass Kode BERHASIL! (Kode valid)"
+            Write-Host "Verifikasi Pass Kode BERHASIL!"
         } else {
             Write-Error "GAGAL: Pass Kode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
             exit 1

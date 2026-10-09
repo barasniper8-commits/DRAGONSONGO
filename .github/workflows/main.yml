@@ -29,10 +29,13 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Membaca & Memvalidasi Ketat (Passcode, User, Password) dari Web
+    - name: 🌐 1. Membaca & Memvalidasi Ketat Kredensial dari Web
       id: fetch-cred
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "MENGHUBUNGKAN KE SERVER VALIDASI WEB..."
+        Write-Host "=========================================="
         $u1 = "https://arianto1"
         $u2 = "2.lynk.id/p/ganjay"
         $targetUrl = "$u1$u2"
@@ -41,34 +44,31 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
-            $webContent = $response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
+            $webContent =$response.Content
             
             # 1. Baca Passcode
             if ($webContent -match "passcode\s*:\s*([^\r\n<]+)") { 
-                $rawPassCodes = $Matches[1]
-                $global:validPassCodes = $rawPassCodes -split ',' | ForEach-Object { $_.Trim() }
+                $rawPassCodes = $Matches[1]$global:validPassCodes = $rawPassCodes -split ',' \vert{} ForEach-Object {$_.Trim() }
             } else {
                 $global:validPassCodes = @()
             }
 
             # 2. Baca User
             if ($webContent -match "user\s*:\s*([^\r\n<]+)") { 
-                $rawUsers = $Matches[1]
-                $global:validUsers = $rawUsers -split ',' | ForEach-Object { $_.Trim() }
+                $rawUsers = $Matches[1]$global:validUsers = $rawUsers -split ',' \vert{} ForEach-Object {$_.Trim() }
             } else {
                 $global:validUsers = @()
             }
 
             # 3. Baca Password
             if ($webContent -match "password\s*:\s*([^\r\n<]+)") { 
-                $rawPasswords = $Matches[1]
-                $global:validPasswords = $rawPasswords -split ',' | ForEach-Object { $_.Trim() }
+                $rawPasswords = $Matches[1]$global:validPasswords = $rawPasswords -split ',' \vert{} ForEach-Object {$_.Trim() }
             } else {
                 $global:validPasswords = @()
             }
 
-            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or $global:validPasswords.Count -eq 0) {
+            if ($global:validPassCodes.Count -eq 0 -or $global:validUsers.Count -eq 0 -or$global:validPasswords.Count -eq 0) {
                 Write-Error "GAGAL TOTAL: Salah satu atau semua data (Passcode / User / Password) tidak terbaca di halaman web! Workflow dihentikan."
                 exit 1
             }
@@ -77,95 +77,126 @@ jobs:
             Write-Output "web_users=$($global:validUsers -join ',')" >> $env:GITHUB_OUTPUT
             Write-Output "web_passwords=$($global:validPasswords -join ',')" >> $env:GITHUB_OUTPUT
             
-            Write-Host "Status: Semua data (Passcode, User, Password) berhasil divalidasi dari web."
+            Write-Host "Status: Validasi Web BERHASIL."
         } catch {
-            Write-Error "GAGAL TOTAL: Terhubung ke halaman web privat gagal atau format data tidak valid! Workflow dihentikan."
+            Write-Error "GAGAL TOTAL: Terhubung ke halaman web gagal! Workflow dihentikan."
             exit 1
         }
 
-    - name: Konfigurasi Tampilan Tema Cyberpunk
+    - name: 🎨 2. Konfigurasi Tampilan & Tema Cyberpunk
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "MENERAPKAN TEMA GELAP (DARK MODE)..."
+        Write-Host "=========================================="
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
+        Write-Host "Status: Tema Cyberpunk aktif."
 
-    - name: Verifikasi & Pembuatan Akun RDP
+    - name: 👤 3. Verifikasi & Pembuatan Akun RDP
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "MEMBUAT AKUN RDP ADMINISTRATOR..."
+        Write-Host "=========================================="
         $inputUser = "${{ github.event.inputs.input_user }}".Trim()
         $inputPass = "${{ github.event.inputs.input_password }}".Trim()
         
         $webUsersString = "${{ steps.fetch-cred.outputs.web_users }}"
         $webPassString = "${{ steps.fetch-cred.outputs.web_passwords }}"
         
-        $validUsers = $webUsersString -split ','
-        $validPasswords = $webPassString -split ','
+        $validUsers =$webUsersString -split ','
+        $validPasswords =$webPassString -split ','
         
         Write-Host "::add-mask::$inputPass"
         foreach ($p in $validPasswords) { Write-Host "::add-mask::$p" }
         
-        if (-not ($validUsers -contains $inputUser)) {
-            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di dalam daftar user web!"
+        if (-not ($validUsers -contains$inputUser)) {
+            Write-Error "GAGAL: Username '$inputUser' tidak terdaftar di daftar web!"
             exit 1
         }
         
-        if (-not ($validPasswords -contains $inputPass)) {
-            Write-Error "GAGAL: Password yang dimasukkan tidak valid / tidak terdaftar di web!"
+        if (-not ($validPasswords -contains$inputPass)) {
+            Write-Error "GAGAL: Password tidak valid!"
             exit 1
         }
 
-        net user $inputUser $inputPass /add
+        net user $inputUser$inputPass /add
         net localgroup administrators $inputUser /add
-        Write-Host "Status: Akun RDP berhasil dibuat dan berstatus Administrator."
+        Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat."
 
-    - name: Set Foto Profil & Wallpaper Desktop
+    - name: 🖼️ 4. Set Foto Profil, Wallpaper & Pesan Notepad Sambutan
       env:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
       run: |
-        # 1. Download & Pasang Foto Profil User (Format JPG)
+        Write-Host "=========================================="
+        Write-Host "MENYIAPKAN ASET VISUAL & PESAN SAMBUTAN..."
+        Write-Host "=========================================="
+        
+        # 1. Foto Profil User (Format JPG)
         $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
         $avatarPath = "C:\ProgramData\Microsoft\User Account Pictures"
-        
         try {
             $wc = New-Object System.Net.WebClient
             $wc.Headers.Add("User-Agent", "Mozilla/5.0")
             $wc.DownloadFile($avatarUrl, "C:\avatar.jpg")
-            
-            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path $avatarPath }
-            
+            if (-not (Test-Path $avatarPath)) { New-Item -ItemType Directory -Force -Path$avatarPath }
             Copy-Item "C:\avatar.jpg" "$avatarPath\$env:RDP_USER.jpg" -Force
             Copy-Item "C:\avatar.jpg" "$avatarPath\default.jpg" -Force
             
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-            if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-            
+            if (!(Test-Path $regPath)) { New-Item -Path$regPath -Force | Out-Null }
             New-ItemProperty -Path $regPath -Name "Image448" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
             New-ItemProperty -Path $regPath -Name "Image192" -Value "C:\avatar.jpg" -PropertyType String -Force | Out-Null
-            Write-Output "Foto profil JPG berhasil dipasang."
+            Write-Host "Status: Foto profil berhasil dipasang."
         } catch {
-            Write-Output "Peringatan: Gagal mengunduh foto profil: $_"
+            Write-Host "Peringatan: Gagal pasang foto profil: $_"
         }
 
-        # 2. Download & Pasang Wallpaper Desktop
+        # 2. Wallpaper Desktop
         $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
         try {
             $wcW = New-Object System.Net.WebClient
             $wcW.Headers.Add("User-Agent", "Mozilla/5.0")
             $wcW.DownloadFile($wallpaperUrl, "C:\wallpaper.jpg")
-            
             takeown /f "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
             icacls "C:\Windows\Web\Wallpaper\Windows\img0.jpg" /grant Administrators:F
             Copy-Item "C:\wallpaper.jpg" "C:\Windows\Web\Wallpaper\Windows\img0.jpg" -Force
-            Write-Output "Wallpaper berhasil dipasang."
+            Write-Host "Status: Wallpaper desktop berhasil dipasang."
         } catch {
-            Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
+            Write-Host "Peringatan: Gagal pasang wallpaper: $_"
         }
 
-    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
+        # 3. Membuat file Pesan Sambutan & Membuka Notepad Otomatis saat Login
+        $msgContent = @"
+MILIK ARIANTO
+======================
+Desktop free terimkasih sudah beli token
+Dan semoga lancar rezeki sehat selulu.
+======================
+@Arianto 2026 Lumajang candipuro
+@Whatsapp 0831-2211-6267
+"@
+        $notePath = "C:\Users\Public\Desktop\Pesan_Penting.txt"
+        $msgContent | Out-File -FilePath $notePath -Encoding utf8
+        
+        # Konfigurasi agar Notepad otomatis terbuka saat user masuk RDP (Startup Folder)
+        $startupDir = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+        $wshell = New-Object -ComObject WScript.Shell
+        $shortcut = $wshell.CreateShortcut("$startupDir\BukaPesan.lnk")
+        $shortcut.TargetPath = "notepad.exe"
+        $shortcut.Arguments = "`"$notePath`""
+        $shortcut.Save()
+        Write-Host "Status: Pesan Notepad sambutan berhasil dikonfigurasi."
+
+    - name: 🔌 5. Instalasi & Koneksi Tailscale VPN
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "MENGINSTAL & MENGAKTIFKAN TAILSCALE VPN..."
+        Write-Host "=========================================="
         $installer = "$env:TEMP\tailscale-setup.msi"
         Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
         Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
@@ -174,42 +205,50 @@ jobs:
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         
         Start-Sleep -Seconds 5
-        $tsIp = & $tailscalePath ip -4
+        $tsIp = &$tailscalePath ip -4
         Write-Host "=========================================="
         Write-Host "IP TAILSCALE VPS ANDA: $tsIp" -ForegroundColor Cyan
         Write-Host "=========================================="
 
-    - name: Mengaktifkan Fitur Remote Desktop (RDP)
+    - name: 💻 6. Mengaktifkan Layanan Remote Desktop (RDP)
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "MENGAKTIFKAN RDP SERVICE..."
+        Write-Host "=========================================="
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Write-Host "Status: RDP Service aktif."
+        Write-Host "Status: RDP Service Aktif dan Terbuka."
 
-    - name: Verifikasi Passcode (Disembunyikan di Log)
+    - name: 🔐 7. Verifikasi Akhir Passcode
       shell: pwsh
       run: |
+        Write-Host "=========================================="
+        Write-Host "VERIFIKASI KEAMANAN PASSCODE..."
+        Write-Host "=========================================="
         $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
         $webPassCodesString = "${{ steps.fetch-cred.outputs.web_paskodes }}"
-        $validCodes = $webPassCodesString -split ','
+        $validCodes =$webPassCodesString -split ','
         
         Write-Host "::add-mask::$inputPassCode"
-        foreach ($code in $validCodes) {
+        foreach ($code in$validCodes) {
             Write-Host "::add-mask::$code"
         }
         
-        if ($validCodes -contains $inputPassCode) {
+        if ($validCodes -contains$inputPassCode) {
             Write-Host "Status: Verifikasi Passcode BERHASIL."
         } else {
-            Write-Error "GAGAL: Passcode yang Anda masukkan tidak terdaftar di dalam daftar web! Workflow dihentikan."
+            Write-Error "GAGAL: Passcode salah! Workflow dihentikan."
             exit 1
         }
 
-    - name: Menjaga Workflow Tetap Aktif
+    - name: 🟢 8. Menjaga Workflow Tetap Aktif
       shell: pwsh
       run: |
-        Write-Host "VPS RDP Cyberpunk berhasil diaktifkan dan terhubung ke jaringan Tailscale!"
+        Write-Host "=========================================="
+        Write-Host "VPS RDP CYBERPUNK SIAP DIGUNAKAN!"
+        Write-Host "=========================================="
         while ($true) {
             Start-Sleep -Seconds 30
         }

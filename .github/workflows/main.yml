@@ -203,7 +203,7 @@ jobs:
         
         $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
         
-        Set-Content -Path $filePath -Value$msgContent -Encoding UTF8
+        $msgContent \vert{} Out-File -FilePath$filePath -Encoding utf8
         
         Write-Output "File informasi berhasil dibuat di desktop."
 

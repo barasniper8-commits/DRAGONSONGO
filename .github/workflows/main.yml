@@ -207,27 +207,6 @@ jobs:
         
         Write-Output "File teks informasi berhasil dibuat di desktop."
 
-    - name: Buat Pop-up Pesan Otomatis Saat Login RDP
-      shell: pwsh
-      run: |
-        $startupPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
-        
-        if (-not (Test-Path $startupPath)) { 
-            New-Item -ItemType Directory -Force -Path $startupPath 
-        }
-        
-        $vbsScriptPath = "$startupPath\PopupPesan.vbs"
-        
-        $vbsLines = @(
-            'Dim msg',
-            'msg = "MILIK ARIANTO" & vbCrLf & vbCrLf & "Desktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu." & vbCrLf & vbCrLf & "Arianto 2026 Lumajang Candipuro" & vbCrLf & "WhatsApp 0831-2211-6267"',
-            'MsgBox msg, 64, "INFORMASI PEMILIK VPS"'
-        )
-        
-        [System.IO.File]::WriteAllLines($vbsScriptPath,$vbsLines, [System.Text.Encoding]::UTF8)
-        
-        Write-Output "Skrip pop-up otomatis saat login berhasil dipasang."
-
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh
       run: |

@@ -199,11 +199,11 @@ jobs:
             $desktopPath = "C:\Users\Public\Desktop" 
         }
         
-        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
-        
         $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
         
-        Set-Content -Path $filePath -Value $msgContent -Encoding UTF8$startupPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
+        
+        [System.IO.File]::WriteAllText($filePath, $msgContent, [System.Text.Encoding]::UTF8)$startupPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
         
         if (-not (Test-Path $startupPath)) { 
             New-Item -ItemType Directory -Force -Path $startupPath 

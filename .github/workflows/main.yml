@@ -159,7 +159,7 @@ jobs:
         Write-Host "Foto profil berhasil dipasang dan didaftarkan."
 
         # 2. PROSES PASANG WALLPAPER DESKTOP
-        $wallpaperUrl = "https://raw.githubusercontent.com/barasniper8-commits/Dragonwork/main/wallpaper.jpg"
+        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh_ezWnmgsHEVv4JafO82YQBBEakIVYSy36FbHO9YlyMlWNO8y4diMoBsWdI-pynrHq_oPGgKzT9Zh2O5Xfg02yfrFKCMPJyEC2DwZs6CkdfKywWmCmWfr9tWWemg7UKoiYxF1oXdKfie0mUzpg0UBZo1CfeILeBVcj47JYU42IiNTrBHjLGbsTbN_rnxA/s1600/1000186451.jpg"
         
         $wallpaperFallbackUrl = "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1920&auto=format&fit=crop"
         

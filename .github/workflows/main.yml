@@ -94,14 +94,12 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat dan berstatus Administrator."
 
-    - name: Set Foto Profil & Wallpaper Desktop (Pasti Berhasil)
+    - name: Set Foto Profil & Wallpaper Desktop
       env:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
       run: |
-        # ----------------------------------------------------
-        # 1. PASANG FOTO PROFIL (Lengkap ke Seluruh Direktori Sistem)
-        # ----------------------------------------------------
+        # 1. PASANG FOTO PROFIL
         $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
         $avatarTemp = "C:\avatar.jpg"
         
@@ -109,7 +107,6 @@ jobs:
         $wc.Headers.Add("User-Agent", "Mozilla/5.0")
         $wc.DownloadFile($avatarUrl, $avatarTemp)
         
-        # Lokasi 1: ProgramData Default User Account Pictures
         $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
         if (-not (Test-Path $accountPicDir)) { New-Item -ItemType Directory -Force -Path $accountPicDir }
         Copy-Item $avatarTemp "$accountPicDir\$env:RDP_USER.jpg" -Force
@@ -118,12 +115,10 @@ jobs:
         Copy-Item $avatarTemp "$accountPicDir\user-192.png" -Force
         Copy-Item $avatarTemp "$accountPicDir\user-448.png" -Force
 
-        # Lokasi 2: Public AccountPictures (Folder Khusus Windows User Profile)
         $publicPicDir = "C:\Users\Public\AccountPictures"
         if (-not (Test-Path $publicPicDir)) { New-Item -ItemType Directory -Force -Path $publicPicDir }
         Copy-Item $avatarTemp "$publicPicDir\$env:RDP_USER.jpg" -Force
 
-        # Set Registri Profil Berdasarkan SID User
         try {
             $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
             $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
@@ -136,39 +131,22 @@ jobs:
             Write-Host "Peringatan registri profil: $_"
         }
 
-        # ----------------------------------------------------
-        # 2. PASANG WALLPAPER DESKTOP (Sistem + API Direct Update)
-        # ----------------------------------------------------
+        # 2. PASANG WALLPAPER DESKTOP
         $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh_ezWnmgsHEVv4JafO82YQBBEakIVYSy36FbHO9YlyMlWNO8y4diMoBsWdI-pynrHq_oPGgKzT9Zh2O5Xfg02yfrFKCMPJyEC2DwZs6CkdfKywWmCmWfr9tWWemg7UKoiYxF1oXdKfie0mUzpg0UBZo1CfeILeBVcj47JYU42IiNTrBHjLGbsTbN_rnxA/s1600/1000186451.jpg"
         $wallPath = "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
         $wallBackup = "C:\wallpaper.jpg"
 
-        # Download Wallpaper Valid
         $wc.DownloadFile($wallpaperUrl, $wallBackup)
 
-        # Ganti Wallpaper Default Windows
         takeown /f $wallPath /a
         icacls $wallPath /grant Administrators:F
         Copy-Item $wallBackup $wallPath -Force
 
-        # Terapkan Wallpaper ke Pengguna Aktif & Default Registry
         Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallBackup
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name WallpaperStyle -Value "2" # Fill Mode
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name WallpaperStyle -Value "2"
         Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name TileWallpaper -Value "0"
 
-        # Panggil API User32 untuk Update Layar Langsung
-        $code = @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class Wallpaper {
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-        }
-"@
-        Add-Type -TypeDefinition $code
-        [Wallpaper]::SystemParametersInfo(20, 0, $wallBackup, 3)
-
-        Write-Host "Status: Foto profil dan Wallpaper berhasil dipasang sempurna."
+        Write-Host "Status: Foto profil dan Wallpaper berhasil dipasang."
 
     - name: Tampilkan Pesan Informasi di Layar Desktop & Otomatis Buka
       shell: pwsh

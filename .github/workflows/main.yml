@@ -41,23 +41,22 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
-            $webContent = $response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
+            $webContent =$response.Content
             
             $plainText = [System.Text.RegularExpressions.Regex]::Replace($webContent, "<[^>]+>", " ")
             
             $validPassCodes = @()
-            $validUsers = @()
-            $validPasswords = @()
+            $validUsers = @()$validPasswords = @()
 
             if ($plainText -match "passcode\s*[:=]\s*([^\r\n]+)") {
-                $validPassCodes = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
+                $validPassCodes = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
             }
             if ($plainText -match "user\s*[:=]\s*([^\r\n]+)") {
-                $validUsers = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
+                $validUsers = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
             }
             if ($plainText -match "password\s*[:=]\s*([^\r\n]+)") {
-                $validPasswords = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
+                $validPasswords = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
             }
 
             if ($validPassCodes.Count -eq 0) { $validPassCodes = @($plainText -split '\s+') }
@@ -92,7 +91,7 @@ jobs:
         
         Write-Host "::add-mask::$inputPass"
 
-        net user $inputUser $inputPass /add
+        net user $inputUser$inputPass /add
         
         net localgroup administrators $inputUser /add
         
@@ -116,9 +115,7 @@ jobs:
         
         Write-Host "Mengunduh foto profil..."
         
-        $wc.DownloadFile($avatarUrl, $avatarTemp)
-        
-        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
+        $wc.DownloadFile($avatarUrl, $avatarTemp)$accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
         
         if (-not (Test-Path $accountPicDir)) { 
             New-Item -ItemType Directory -Force -Path $accountPicDir 
@@ -170,17 +167,17 @@ jobs:
         Write-Host "Mengunduh wallpaper desktop..."
         
         try {
-            $wc.DownloadFile($wallpaperUrl, $wallBackup)
+            $wc.DownloadFile($wallpaperUrl,$wallBackup)
         } catch {
             Write-Host "Menggunakan tautan wallpaper cadangan..."
-            $wc.DownloadFile($wallpaperFallbackUrl, $wallBackup)
+            $wc.DownloadFile($wallpaperFallbackUrl,$wallBackup)
         }
 
         takeown /f $wallPath /a
         
         icacls $wallPath /grant Administrators:F
         
-        Copy-Item $wallBackup $wallPath -Force
+        Copy-Item $wallBackup$wallPath -Force
 
         Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallBackup
         
@@ -190,24 +187,7 @@ jobs:
         
         Write-Host "Wallpaper desktop berhasil diterapkan."
 
-    - name: Buat File Informasi Pemilik VPS di Desktop
-      shell: pwsh
-      run: |
-        $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
-        
-        if (-not (Test-Path $desktopPath)) { 
-            $desktopPath = "C:\Users\Public\Desktop" 
-        }
-        
-        $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
-        
-        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
-        
-        $msgContent \vert{} Out-File -FilePath$filePath -Encoding utf8
-        
-        Write-Output "File informasi berhasil dibuat di desktop."
-
-    - name: Buat Shortcut Startup Agar Otomatis Buka di Layar
+    - name: Buat File Teks Informasi Pemilik di Desktop
       shell: pwsh
       run: |
         $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
@@ -217,23 +197,32 @@ jobs:
         
         $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
         
+        $msgContent = "MILIK ARIANTO`n`nDesktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu.`n`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
+        
+        $msgContent \vert{} Out-File -FilePath$filePath -Encoding utf8
+        
+        Write-Output "File teks informasi berhasil dibuat di desktop."
+
+    - name: Buat Pop-up Pesan Otomatis Saat Login RDP
+      shell: pwsh
+      run: |
         $startupPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
         
         if (-not (Test-Path $startupPath)) { 
             New-Item -ItemType Directory -Force -Path $startupPath 
         }
         
-        $ws = New-Object -ComObject WScript.Shell
+        $vbsScriptPath = "$startupPath\PopupPesan.vbs"
         
-        $shortcut = $ws.CreateShortcut("$startupPath\BukaPesan.lnk")
+        $vbsCode = @"
+        Dim msg
+        msg = "MILIK ARIANTO" & vbCrLf & vbCrLf & "Desktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu." & vbCrLf & vbCrLf & "Arianto 2026 Lumajang Candipuro" & vbCrLf & "WhatsApp 0831-2211-6267"
+        MsgBox msg, vbInformation + vbOKOnly, "INFORMASI PEMILIK VPS"
+"@
         
-        $shortcut.TargetPath = "notepad.exe"
+        $vbsCode \vert{} Out-File -FilePath$vbsScriptPath -Encoding utf8
         
-        $shortcut.Arguments = "`"$filePath`""
-        
-        $shortcut.Save()
-        
-        Write-Output "Shortcut startup berhasil dibuat."
+        Write-Output "Skrip pop-up otomatis saat login berhasil dipasang."
 
     - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
       shell: pwsh

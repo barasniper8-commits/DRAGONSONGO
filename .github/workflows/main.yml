@@ -218,15 +218,13 @@ jobs:
         
         $vbsScriptPath = "$startupPath\PopupPesan.vbs"
         
-        $line1 = 'Dim msg'$line2 = 'msg = "MILIK ARIANTO" & vbCrLf & vbCrLf & "Desktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu." & vbCrLf & vbCrLf & "Arianto 2026 Lumajang Candipuro" & vbCrLf & "WhatsApp 0831-2211-6267"'
+        $vbsLines = @(
+            'Dim msg',
+            'msg = "MILIK ARIANTO" & vbCrLf & vbCrLf & "Desktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu." & vbCrLf & vbCrLf & "Arianto 2026 Lumajang Candipuro" & vbCrLf & "WhatsApp 0831-2211-6267"',
+            'MsgBox msg, 64, "INFORMASI PEMILIK VPS"'
+        )
         
-        $line3 = 'MsgBox msg, 64, "INFORMASI PEMILIK VPS"'
-        
-        $line1 >$vbsScriptPath
-        
-        $line2 >>$vbsScriptPath
-        
-        $line3 >>$vbsScriptPath
+        $vbsLines \vert{} Out-File -FilePath$vbsScriptPath -Encoding utf8
         
         Write-Output "Skrip pop-up otomatis saat login berhasil dipasang."
 

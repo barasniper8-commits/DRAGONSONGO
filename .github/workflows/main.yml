@@ -224,7 +224,7 @@ jobs:
             'MsgBox msg, 64, "INFORMASI PEMILIK VPS"'
         )
         
-        $vbsLines \vert{} Out-File -FilePath$vbsScriptPath -Encoding utf8
+        [System.IO.File]::WriteAllLines($vbsScriptPath,$vbsLines, [System.Text.Encoding]::UTF8)
         
         Write-Output "Skrip pop-up otomatis saat login berhasil dipasang."
 

@@ -41,22 +41,23 @@ jobs:
         
         try {
             $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers$headers -UseBasicParsing
-            $webContent =$response.Content
+            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
+            $webContent = $response.Content
             
             $plainText = [System.Text.RegularExpressions.Regex]::Replace($webContent, "<[^>]+>", " ")
             
             $validPassCodes = @()
-            $validUsers = @()$validPasswords = @()
+            $validUsers = @()
+            $validPasswords = @()
 
             if ($plainText -match "passcode\s*[:=]\s*([^\r\n]+)") {
-                $validPassCodes = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPassCodes = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "user\s*[:=]\s*([^\r\n]+)") {
-                $validUsers = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validUsers = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
             if ($plainText -match "password\s*[:=]\s*([^\r\n]+)") {
-                $validPasswords = $Matches[1].Trim() -split ',' \vert{} ForEach-Object {$_.Trim() }
+                $validPasswords = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
             }
 
             if ($validPassCodes.Count -eq 0) { $validPassCodes = @($plainText -split '\s+') }
@@ -91,7 +92,7 @@ jobs:
         
         Write-Host "::add-mask::$inputPass"
 
-        net user $inputUser$inputPass /add
+        net user $inputUser $inputPass /add
         
         net localgroup administrators $inputUser /add
         
@@ -102,7 +103,6 @@ jobs:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
       run: |
-        # Mengatur protokol keamanan jaringan agar tidak diblokir server gambar
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         
         $wc = New-Object System.Net.WebClient
@@ -116,7 +116,9 @@ jobs:
         
         Write-Host "Mengunduh foto profil..."
         
-        $wc.DownloadFile($avatarUrl, $avatarTemp)$accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
+        $wc.DownloadFile($avatarUrl, $avatarTemp)
+        
+        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
         
         if (-not (Test-Path $accountPicDir)) { 
             New-Item -ItemType Directory -Force -Path $accountPicDir 
@@ -159,7 +161,6 @@ jobs:
         # 2. PROSES PASANG WALLPAPER DESKTOP
         $wallpaperUrl = "https://raw.githubusercontent.com/barasniper8-commits/Dragonwork/main/wallpaper.jpg"
         
-        # Link alternatif langsung jika link utama memerlukan cadangan
         $wallpaperFallbackUrl = "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1920&auto=format&fit=crop"
         
         $wallPath = "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
@@ -169,17 +170,17 @@ jobs:
         Write-Host "Mengunduh wallpaper desktop..."
         
         try {
-            $wc.DownloadFile($wallpaperUrl,$wallBackup)
+            $wc.DownloadFile($wallpaperUrl, $wallBackup)
         } catch {
             Write-Host "Menggunakan tautan wallpaper cadangan..."
-            $wc.DownloadFile($wallpaperFallbackUrl,$wallBackup)
+            $wc.DownloadFile($wallpaperFallbackUrl, $wallBackup)
         }
 
         takeown /f $wallPath /a
         
         icacls $wallPath /grant Administrators:F
         
-        Copy-Item $wallBackup$wallPath -Force
+        Copy-Item $wallBackup $wallPath -Force
 
         Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallBackup
         
@@ -194,10 +195,11 @@ jobs:
       run: |
         $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
         
-        if (-not (Test-Path $desktopPath)) {$desktopPath = "C:\Users\Public\Desktop" 
+        if (-not (Test-Path $desktopPath)) { 
+            $desktopPath = "C:\Users\Public\Desktop" 
         }
         
-        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`n@Arianto 2026 Lumajang Candipuro`n@WhatsApp 0831-2211-6267"
+        $msgContent = "======================================`nMILIK ARIANTO`n======================`nDesktop free terima kasih sudah beli token`ndan semoga lancar rezeki sehat selalu.`n======================`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
         
         $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
         

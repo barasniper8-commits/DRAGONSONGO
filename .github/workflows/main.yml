@@ -125,7 +125,7 @@ jobs:
         }
 
         # 2. Download & Pasang Wallpaper Desktop
-        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRFqAvUV6j9-n3L65cySSsdK3JHZ88fKJlquXCK5pGhNRRlOmYfnIb3Zk4Y7SUC232-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
+        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh_ezWnmgsHEVv4JafO82YQBBEakIVYSy36FbHO9YlyMlWNO8y4diMoBsWdI-pynrHq_oPGgKzT9Zh2O5Xfg02yfrFKCMPJyEC2DwZs6CkdfKywWmCmWfr9tWWemg7UKoiYxF1oXdKfie0mUzpg0UBZo1CfeILeBVcj47JYU42IiNTrBHjLGbsTbN_rnxA/s1600/1000186451.jpg-P5VcYgFZgiJ7jPfTR4HUmKtiOLG60FzYgby4m52MHOgXB0JuV5KZaR_3tdOPH5USQOqBx2GHYj_KTnntxjNzKKIh0VPFLAOaNoBlVJZi13KPvoWgjRRseVZObA/s1600/1000184023.jpg"
         try {
             $wcW = New-Object System.Net.WebClient
             $wcW.Headers.Add("User-Agent", "Mozilla/5.0")

@@ -203,7 +203,7 @@ jobs:
         
         $msgContent = "MILIK ARIANTO`n`nDesktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu.`n`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
         
-        $msgContent \vert{} Out-File -FilePath$filePath -Encoding utf8
+        Out-File -FilePath $filePath -InputObject$msgContent -Encoding utf8
         
         Write-Output "File teks informasi berhasil dibuat di desktop."
 
@@ -219,10 +219,13 @@ jobs:
         $vbsScriptPath = "$startupPath\PopupPesan.vbs"
         
         $line1 = 'Dim msg'$line2 = 'msg = "MILIK ARIANTO" & vbCrLf & vbCrLf & "Desktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu." & vbCrLf & vbCrLf & "Arianto 2026 Lumajang Candipuro" & vbCrLf & "WhatsApp 0831-2211-6267"'
+        
         $line3 = 'MsgBox msg, 64, "INFORMASI PEMILIK VPS"'
         
         Set-Content -Path $vbsScriptPath -Value$line1 -Encoding UTF8
+        
         Add-Content -Path $vbsScriptPath -Value$line2 -Encoding UTF8
+        
         Add-Content -Path $vbsScriptPath -Value$line3 -Encoding UTF8
         
         Write-Output "Skrip pop-up otomatis saat login berhasil dipasang."

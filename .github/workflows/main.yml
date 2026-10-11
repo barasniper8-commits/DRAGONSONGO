@@ -1,260 +1,96 @@
-name: Windows RDP Cyberpunk
+name: ThyoCloud Personal RDP (Fork)
 
 on:
   workflow_dispatch:
     inputs:
-      pass_code:
-        description: 'Masukkan Pass Kode (salah satu dari web)'
+      osChoice:
+        description: 'Pilih Versi Windows Server'
         required: true
-        type: string
-      input_user:
-        description: 'Masukkan Username RDP (salah satu dari web)'
+        type: choice
+        default: 'windows-2022'
+        options:
+          - windows-latest
+          - windows-2025
+          - windows-2022
+      userEmail:
+        description: 'Email yang terdaftar di Web ThyoCloud'
         required: true
-        type: string
-      input_password:
-        description: 'Masukkan Password RDP (sesuai user)'
-        required: true
-        type: string
-      tailscale_key:
-        description: 'Masukkan Tailscale Auth Key'
-        required: true
-        type: string
+      customUsername:
+        description: 'Username RDP (Opsional - Default: thyocloud)'
+        required: false
+        default: 'thyocloud'
 
 jobs:
-  build:
-    runs-on: windows-latest
-    timeout-minutes: 150
+  build-rdp:
+    runs-on: ${{ github.event.inputs.osChoice }}
+    timeout-minutes: 360
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Membaca & Memvalidasi Web Lynk.id (Aman & Tanpa Crash)
-      id: fetch-cred
-      shell: pwsh
-      run: |
-        $u1 = "https://arianto1"
-        $u2 = "2.lynk.id/p/ganjay"
-        $targetUrl = "$u1$u2"
-        
-        [Console]::WriteLine("::add-mask::$targetUrl")
-        
-        try {
-            $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-            $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
-            $webContent = $response.Content
+      - name: 🚀 Menghubungkan ke ThyoCloud Server Web
+        env:
+          EMAIL: ${{ github.event.inputs.userEmail }}
+          RDP_USER: ${{ github.event.inputs.customUsername }}
+          REPO: ${{ github.event.repository.name }}
+          OS_TYPE: ${{ github.event.inputs.osChoice }}
+        run: |
+          Write-Host "Sistem Operasi Terpilih: $env:OS_TYPE"
+          Write-Host "Verifikasi Email ke ThyoCloud..."
+          
+          $webUrl = "https://thyo.cloud/api/get-core"
+          
+          # Payload JSON
+          $payload = @{ email = $env:EMAIL; username =$env:RDP_USER; repo = $env:REPO } \vert{} ConvertTo-Json$requestParams = @{
+            Uri         = $webUrl
+            Method      = 'Post'
+            Body        = $payload
+            ContentType = 'application/json'
+          }
+          
+          try {
+            $req = Invoke-RestMethod @requestParams
             
-            $plainText = [System.Text.RegularExpressions.Regex]::Replace($webContent, "<[^>]+>", " ")
-            
-            $validPassCodes = @()
-            $validUsers = @()
-            $validPasswords = @()
+            if ($req.success -eq$true) {
+              Write-Host "✅ Akses Diterima! Menjalankan Core Engine..."
+              Invoke-Expression $req.script
 
-            if ($plainText -match "passcode\s*[:=]\s*([^\r\n]+)") {
-                $validPassCodes = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
+              # --- KODE TAMBAHAN: KONFIGURASI USER & RDP GROUP ---
+              try {
+                  Write-Host "Memeriksa dan mengonfigurasi akses User Windows..."
+                  $targetUser = "$env:RDP_USER"
+                  
+                  # Memasukkan user ke grup Remote Desktop Users agar diizinkan koneksi RDP
+                  net localgroup "Remote Desktop Users" $targetUser /add 2>&1
+                  # Memastikan akun aktif
+                  net user $targetUser /active:yes 2>&1
+                  
+                  Write-Host "✅ Akses User RDP berhasil dikonfigurasi!"
+              } catch {
+                  Write-Host "⚠️ Catatan User: $_"
+              }
+              # --------------------------------------------------
+
+              # --- KODE GANTI WALLPAPER ---
+              try {
+                  Write-Host "Mencoba mengatur wallpaper desktop..."
+                  $imageUrl = "https://raw.githubusercontent.com/username/repo/main/wallpaper.jpg" # Ganti link gambar (.jpg/.png)
+                  $outputFile = "$env:TEMP\custom_wallpaper.jpg"
+                  
+                  Invoke-WebRequest -Uri $imageUrl -OutFile $outputFile$cSource = "using System.Runtime.InteropServices; public class WallpaperSetter { [DllImport(`"user32.dll`", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }"
+                  Add-Type -TypeDefinition $cSource
+                  [WallpaperSetter]::SystemParametersInfo(20, 0, $outputFile, 3)
+                  Write-Host "✅ Wallpaper berhasil diubah!"
+              } catch {
+                  Write-Host "⚠️ Peringatan: Gagal mengubah wallpaper, proses RDP dilanjutkan."
+              }
+              # ---------------------------
+
+            } else {
+              Write-Host "⛔ GAGAL: $($req.message)"
+              Write-Host "Pastikan kamu sudah klaim Token di Web dan Verify di Bot Telegram @ThyoCloudBot"
+              exit 1
             }
-            if ($plainText -match "user\s*[:=]\s*([^\r\n]+)") {
-                $validUsers = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
-            }
-            if ($plainText -match "password\s*[:=]\s*([^\r\n]+)") {
-                $validPasswords = $Matches[1].Trim() -split ',' | ForEach-Object { $_.Trim() }
-            }
-
-            if ($validPassCodes.Count -eq 0) { $validPassCodes = @($plainText -split '\s+') }
-            if ($validUsers.Count -eq 0) { $validUsers = @("${{ github.event.inputs.input_user }}") }
-            if ($validPasswords.Count -eq 0) { $validPasswords = @("${{ github.event.inputs.input_password }}") }
-
-            Write-Output "web_paskodes=$($validPassCodes -join ',')" >> $env:GITHUB_OUTPUT
-            Write-Output "web_users=$($validUsers -join ',')" >> $env:GITHUB_OUTPUT
-            Write-Output "web_passwords=$($validPasswords -join ',')" >> $env:GITHUB_OUTPUT
-            
-            Write-Host "Status: Data dari Lynk.id berhasil diakses."
-        } catch {
-            Write-Host "Peringatan: Gagal membaca halaman web, melanjutkan proses dengan input pengguna."
-            Write-Output "web_paskodes=bypass" >> $env:GITHUB_OUTPUT
-            Write-Output "web_users=${{ github.event.inputs.input_user }}" >> $env:GITHUB_OUTPUT
-            Write-Output "web_passwords=${{ github.event.inputs.input_password }}" >> $env:GITHUB_OUTPUT
-        }
-
-    - name: Konfigurasi Tampilan Tema Cyberpunk
-      shell: pwsh
-      run: |
-        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
-        
-        Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'SystemUsesLightTheme' -Value 0
-
-    - name: Verifikasi & Pembuatan Akun RDP
-      shell: pwsh
-      run: |
-        $inputUser = "${{ github.event.inputs.input_user }}".Trim()
-        
-        $inputPass = "${{ github.event.inputs.input_password }}".Trim()
-        
-        Write-Host "::add-mask::$inputPass"
-
-        net user $inputUser $inputPass /add
-        
-        net localgroup administrators $inputUser /add
-        
-        Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat dan berstatus Administrator."
-
-    - name: Set Foto Profil & Wallpaper Desktop (Wajib Berhasil)
-      env:
-        RDP_USER: ${{ github.event.inputs.input_user }}
-      shell: pwsh
-      run: |
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        
-        $wc = New-Object System.Net.WebClient
-        
-        $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-
-        # 1. PROSES PASANG FOTO PROFIL
-        $avatarUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjFqQRxOHnZXYINO_52beLKrfrMypBHzpnllWSHx6gQHO4yspMqi2skpfp8z0lvsOOWHjSJ6G33I8Y2rGXo8_FVAkrgnDxtYuWK_Z5go81NcvEoRV6koacWRU4HsXD0R3nqW69a1FJnxhzy2PI8z2PQKqxWIEc_mX3oOROBIj9Y3HW4NcEq6FcNzMyMMwA/s1600/1000184069.jpg"
-        
-        $avatarTemp = "C:\avatar.jpg"
-        
-        Write-Host "Mengunduh foto profil..."
-        
-        $wc.DownloadFile($avatarUrl, $avatarTemp)
-        
-        $accountPicDir = "C:\ProgramData\Microsoft\User Account Pictures"
-        
-        if (-not (Test-Path $accountPicDir)) { 
-            New-Item -ItemType Directory -Force -Path $accountPicDir 
-        }
-        
-        Copy-Item $avatarTemp "$accountPicDir\$env:RDP_USER.jpg" -Force
-        
-        Copy-Item $avatarTemp "$accountPicDir\default.jpg" -Force
-        
-        Copy-Item $avatarTemp "$accountPicDir\user.png" -Force
-        
-        Copy-Item $avatarTemp "$accountPicDir\user-192.png" -Force
-        
-        Copy-Item $avatarTemp "$accountPicDir\user-448.png" -Force
-
-        $publicPicDir = "C:\Users\Public\AccountPictures"
-        
-        if (-not (Test-Path $publicPicDir)) { 
-            New-Item -ItemType Directory -Force -Path $publicPicDir 
-        }
-        
-        Copy-Item $avatarTemp "$publicPicDir\$env:RDP_USER.jpg" -Force
-
-        $userSid = (New-Object System.Security.Principal.NTAccount($env:RDP_USER)).Translate([System.Security.Principal.SecurityIdentifier]).Value
-        
-        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$userSid"
-        
-        if (!(Test-Path $regPath)) { 
-            New-Item -Path $regPath -Force | Out-Null 
-        }
-        
-        New-ItemProperty -Path $regPath -Name "Image448" -Value $avatarTemp -PropertyType String -Force | Out-Null
-        
-        New-ItemProperty -Path $regPath -Name "Image192" -Value $avatarTemp -PropertyType String -Force | Out-Null
-        
-        New-ItemProperty -Path $regPath -Name "Image96" -Value $avatarTemp -PropertyType String -Force | Out-Null
-        
-        Write-Host "Foto profil berhasil dipasang dan didaftarkan."
-
-        # 2. PROSES PASANG WALLPAPER DESKTOP
-        $wallpaperUrl = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh_ezWnmgsHEVv4JafO82YQBBEakIVYSy36FbHO9YlyMlWNO8y4diMoBsWdI-pynrHq_oPGgKzT9Zh2O5Xfg02yfrFKCMPJyEC2DwZs6CkdfKywWmCmWfr9tWWemg7UKoiYxF1oXdKfie0mUzpg0UBZo1CfeILeBVcj47JYU42IiNTrBHjLGbsTbN_rnxA/s1600/1000186451.jpg"
-        
-        $wallpaperFallbackUrl = "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1920&auto=format&fit=crop"
-        
-        $wallPath = "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
-        
-        $wallBackup = "C:\wallpaper.jpg"
-
-        Write-Host "Mengunduh wallpaper desktop..."
-        
-        try {
-            $wc.DownloadFile($wallpaperUrl, $wallBackup)
-        } catch {
-            Write-Host "Menggunakan tautan wallpaper cadangan..."
-            $wc.DownloadFile($wallpaperFallbackUrl, $wallBackup)
-        }
-
-        takeown /f $wallPath /a
-        
-        icacls $wallPath /grant Administrators:F
-        
-        Copy-Item $wallBackup $wallPath -Force
-
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $wallBackup
-        
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name WallpaperStyle -Value "2"
-        
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name TileWallpaper -Value "0"
-        
-        Write-Host "Wallpaper desktop berhasil diterapkan."
-
-    - name: Buat File Teks Informasi Pemilik di Desktop
-      shell: pwsh
-      run: |
-        $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')
-        
-        if (-not (Test-Path $desktopPath)) { 
-            $desktopPath = "C:\Users\Public\Desktop" 
-        }
-        
-        $filePath = "$desktopPath\INFORMASI_PEMILIK_VPS.txt"
-        
-        $msgContent = "MILIK ARIANTO`n`nDesktop free terima kasih sudah beli token dan semoga lancar rezeki sehat selalu.`n`nArianto 2026 Lumajang Candipuro`nWhatsApp 0831-2211-6267"
-        
-        $msgContent >$filePath
-        
-        Write-Output "File teks informasi berhasil dibuat di desktop."
-
-    - name: Instalasi & Koneksi Tailscale VPN (Windows MSI)
-      shell: pwsh
-      run: |
-        $installer = "$env:TEMP\tailscale-setup.msi"
-        
-        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.88.4-amd64.msi" -OutFile $installer
-        
-        Start-Process msiexec.exe -Wait -ArgumentList "/i $installer /quiet /norestart"
-        
-        $tailscalePath = "${env:ProgramFiles}\Tailscale\tailscale.exe"
-        
-        & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
-        
-        Start-Sleep -Seconds 5
-        
-        $tsIp = &$tailscalePath ip -4
-        
-        Write-Host "=========================================="
-        
-        Write-Host "IP TAILSCALE VPS ANDA: $tsIp" -ForegroundColor Cyan
-        
-        Write-Host "=========================================="
-
-    - name: Mengaktifkan Fitur Remote Desktop (RDP)
-      shell: pwsh
-      run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-        
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
-        
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        
-        Write-Host "Status: RDP Service aktif."
-
-    - name: Verifikasi Passcode dari Web
-      shell: pwsh
-      run: |
-        $inputPassCode = "${{ github.event.inputs.pass_code }}".Trim()
-        
-        Write-Host "::add-mask::$inputPassCode"
-        
-        Write-Host "Status: Passcode berhasil diverifikasi."
-
-    - name: Menjaga Workflow Tetap Aktif
-      shell: pwsh
-      run: |
-        Write-Host "VPS RDP Cyberpunk berhasil diaktifkan dan terhubung ke jaringan Tailscale!"
-        
-        while ($true) {
-            Start-Sleep -Seconds 30
-        }
+          } catch {
+            Write-Host "⛔ Detail Error: $_"
+            Write-Host "Pastikan email sudah terdaftar, token sudah diklaim di web, dan terverifikasi di @ThyoCloudBot"
+            exit 1
+          }

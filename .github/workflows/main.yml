@@ -29,7 +29,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Membaca & Memvalidasi Web Lynk.id (Aman & Tanpa Crash)
+    - name: Membaca & Memvalidasi
       id: fetch-cred
       shell: pwsh
       run: |
@@ -76,7 +76,7 @@ jobs:
             Write-Output "web_passwords=${{ github.event.inputs.input_password }}" >> $env:GITHUB_OUTPUT
         }
 
-    - name: Konfigurasi Tampilan Tema Cyberpunk
+    - name: Konfigurasi Tampilan 
       shell: pwsh
       run: |
         Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme' -Value 0
@@ -94,7 +94,7 @@ jobs:
         net localgroup administrators $inputUser /add
         Write-Host "Status: Akun RDP '$inputUser' berhasil dibuat dan berstatus Administrator."
 
-    - name: Set Foto Profil & Wallpaper Desktop
+    - name: Set tampilan
       env:
         RDP_USER: ${{ github.event.inputs.input_user }}
       shell: pwsh
@@ -139,7 +139,7 @@ jobs:
             Write-Output "Peringatan: Gagal mengunduh wallpaper, melewati bagian ini..."
         }
 
-    - name: Tampilkan Pesan Informasi di Layar Desktop
+    - name: loading . . .
       shell: pwsh
       run: |
         $desktopPath = [Environment]::GetFolderPath('CommonDesktopDirectory')

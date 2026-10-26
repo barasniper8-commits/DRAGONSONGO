@@ -161,7 +161,7 @@ jobs:
         & $tailscalePath up --authkey="${{ github.event.inputs.tailscale_key }}" --accept-routes
         
         Start-Sleep -Seconds 5
-        $tsIp = &$tailscalePath ip -4
+        $tsIp = &$taip -4
         Write-Host "=========================================="
         Write-Host "IP TAILSCALE VPS ANDA: $tsIp" -ForegroundColor Cyan
         Write-Host "=========================================="
